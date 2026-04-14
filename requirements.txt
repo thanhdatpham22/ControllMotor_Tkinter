@@ -1,0 +1,9 @@
+﻿numpy>=1.26.0
+opencv-python>=4.10.0
+Pillow>=10.4.0
+# Optional for real YOLO segmentation:
+# ultralytics>=8.3.0
+# Optional for Basler Vision cameras:
+# pypylon>=3.0.0
+# Optional for RS232 / Modbus RTU motor communication:
+# pyserial>=3.5
