@@ -5,7 +5,7 @@ from collections import deque
 import queue
 
 class ModbusRTUService:
-    def __init__(self, port, baudrate=115200, timeout=1):
+    def __init__(self, port, baudrate=115200, timeout=0.05):
         self.ser = serial.Serial(
             port=port,
             baudrate=baudrate,
@@ -16,7 +16,7 @@ class ModbusRTUService:
         )
         self.lock = threading.Lock()
         self.command_log: deque[str] = deque(maxlen=200)
-        self.log_queue = queue.Queue()
+        self.log_queue = queue.Queue(maxsize=1000)
     # ================= CRC16 =================
     def crc16(self, data: bytes):
         crc = 0xFFFF
@@ -50,9 +50,19 @@ class ModbusRTUService:
 
             self._log(f"TX: {frame.hex(' ')}")
             self.ser.write(frame)
-            time.sleep(0.05)
 
-            response = self.ser.read(256)
+            # đọc header
+            header = self.ser.read(3)
+            if len(header) < 3:
+                self._log("RX timeout (header)")
+                return b''
+
+            byte_count = header[2]
+
+            # đọc data + CRC
+            body = self.ser.read(byte_count + 2)
+
+            response = header + body
 
             self._log(f"RX: {response.hex(' ')}")
             return response
@@ -190,10 +200,12 @@ class ModbusRTUService:
         return list(self.command_log)
     def _log(self, msg):
         timestamp = time.strftime("%H:%M:%S")
-        full_msg = f"[{timestamp}] {msg}"
-
-        self.command_log.append(full_msg)
-        self.log_queue.put(full_msg)
+        line = f"[{timestamp}] {msg}"
+        self.command_log.append(line)
+        try:
+            self.log_queue.put_nowait(line)
+        except queue.Full:
+            pass
 
     def get_log(self):
         return list(self.command_log)

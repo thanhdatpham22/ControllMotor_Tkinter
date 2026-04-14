@@ -881,9 +881,9 @@ class MainWindow:
     def _motor_home(self) -> None:
         self._handle_motor_result(self.motor_service.home())
 
-    def _motor_jog(self, axis: str, direction: int) -> None:
-        step = max(0.01, float(self.jog_step_var.get()))
-        self._handle_motor_result(self.motor_service.jog(axis, direction, step))
+    # def _motor_jog(self, axis: str, direction: int) -> None:
+    #     step = max(0.01, float(self.jog_step_var.get()))
+    #     self._handle_motor_result(self.motor_service.jog(axis, direction, step))
 
     def _move_absolute(self):
         try:
@@ -1095,7 +1095,7 @@ class MainWindow:
             self.motor_log_text.see(tk.END)
             self.motor_log_text.configure(state="disabled")
     
-        self.root.after(50, self._update_motor_log_ui)  # 🔥 50ms là đẹp
+        self.root.after(16, self._update_motor_log_ui)  # 🔥 50ms là đẹp
     def _motor_jog_press(self, axis: str, direction: int):
         if not self.motor_service or not self.motor_service.is_connected():
             return
