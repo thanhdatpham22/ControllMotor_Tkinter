@@ -7,8 +7,8 @@ class AppState():
         self.abs_y_var = tk.DoubleVar(value=0)
         self.abs_z_var = tk.DoubleVar(value=0)
 
-        self.speed_x = tk.DoubleVar(value=5)
-        self.speed_y = tk.DoubleVar(value=5)
-        self.speed_z = tk.DoubleVar(value=5)
+        self.speed_x = tk.DoubleVar(value=20)
+        self.speed_y = tk.DoubleVar(value=20)
+        self.speed_z = tk.DoubleVar(value=20)
 
 

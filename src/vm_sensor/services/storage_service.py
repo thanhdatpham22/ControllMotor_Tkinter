@@ -3,9 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-
 from vm_sensor.models import PolygonAnnotation, SegmentResult
-
 
 class StorageService:
     def __init__(self, output_dir: Path) -> None:

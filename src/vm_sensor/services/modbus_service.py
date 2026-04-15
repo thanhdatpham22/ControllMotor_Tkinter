@@ -75,14 +75,23 @@ class ModbusRTUService:
                 raise Exception(f"Modbus Exception: {error_code}")
     # ================= PARSE =================
     def _parse_registers(self, response):
-        if len(response) < 5:
+        if not response or len(response) < 5:
+            print("Invalid response:", response)
             return None
+
         byte_count = response[2]
+
+        if len(response) < 3 + byte_count + 2:
+            print("Incomplete frame:", response)
+            return None
+
         data = response[3:3 + byte_count]
+
         values = []
         for i in range(0, len(data), 2):
             val = (data[i] << 8) | data[i + 1]
             values.append(val)
+
         return values
 
     def _parse_bits(self, response, quantity):
@@ -135,8 +144,9 @@ class ModbusRTUService:
             quantity >> 8, quantity & 0xFF
         ])
         frame = self.build_frame(slave_id, 0x04, payload)
-        res = self.send_request(frame)
-        return self._parse_registers(res)
+        # res = self.send_request(frame)
+        # # print("read_input_registers ",res)
+        return self.send_request(frame)
 
     # ================= 0x05 =================
     def write_single_coil(self, slave_id, addr, value: bool):
