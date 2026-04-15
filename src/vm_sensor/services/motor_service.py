@@ -35,7 +35,7 @@ class MotorControllerService():
         self.axis_positions = {"x": 0, "y": 0, "z": 0}
         self.axis_speeds: dict[AxisName, float] = {"x": 20.0, "y": 20.0, "z": 10.0}
         self._polling = False
-        self.poll_interval = 0.1
+        self.refresh_interval = 100
         self.status_message = "Motor service ready. Waiting for COM connection or mock commands."
         self.map = reg_map
         self.param = AppState()
@@ -60,17 +60,6 @@ class MotorControllerService():
 
             "status": str(self.status_message),
         }
-    def start_worker(self):
-        threading.Thread(target=self._worker_loop, daemon=True).start()
-
-    def _worker_loop(self):
-        while True:
-            func, args = self.cmd_queue.get()
-            try:
-                func(*args)
-            except Exception as e:
-                if self.modbus:
-                    self.modbus._log(f"Worker error: {e}")
     def list_ports(self) -> tuple[list[str], str]:
         if list_ports is None:
             return [], "pyserial is not installed. COM port scan is unavailable."
@@ -80,6 +69,21 @@ class MotorControllerService():
             return [], "No COM port detected."
         print("List Ports: ",list_ports)
         return ports, f"Found {len(ports)} COM port(s)."
+    def set_refresh_interval(self, interval_ms: int):
+        self.refresh_interval = interval_ms
+    def start_worker(self):
+        threading.Thread(target=self._worker_loop, daemon=True).start()
+        threading.Thread(target=self._poll_loop, daemon=True).start()
+    def _worker_loop(self):
+        while self._polling:
+            func, args = self.cmd_queue.get()
+            # print("Have get Queue Signal")
+            try:
+                func(*args)
+            except Exception as e:
+                if self.modbus:
+                    self.modbus._log(f"Worker error: {e}")
+
     # ================= CONNECT =================
     def connect(self, port, baudrate=115200, timeout = 0.2):
         try:
@@ -87,20 +91,18 @@ class MotorControllerService():
             self.connected_port = port
             self.timeout = timeout
             self.modbus._log(f"Connected {port}")
-            self.set_poll_rate(10)
-            self.start_polling()
+            
+            self._polling = True
             self.start_worker()
+            self.home()
             return True, "Connected"
-
         except Exception as e:
             if self.modbus:
                 self.modbus._log(f"Connect error: {e}")
             return False, str(e)
 
     def disconnect(self):
-        
         self._polling = False
-
         if self.modbus:
             try:
                 self.modbus.close()
@@ -108,58 +110,40 @@ class MotorControllerService():
                 pass
         if self.modbus:
             self.modbus._log("Disconnected")   # ✅ log ở motor
-        self.modbus = None
+        # self.modbus = None
         self.connected_port = None
-
-        
         return True, "Disconnected"
 
     def is_connected(self):
         return self.modbus is not None
-
     # ================= POLLING =================
-    def start_polling(self):
-        self._polling = True
-        threading.Thread(target=self._poll_loop, daemon=True).start()
-    def set_poll_rate(self, ms):
-        self.poll_interval = ms / 1000.0
     def _poll_loop(self):
+        count = 0
         while self._polling:
+            # count += 1
             if self.modbus:
                 try:
                     res = self.modbus.read_holding_registers(1, 0, 3)
-                    if res or self.modbus:
+                    if res :
                         values = self.modbus._parse_registers(res)
                         if values:
                             self.axis_positions["x"] = values[0]
                             self.axis_positions["y"] = values[1]
                             self.axis_positions["z"] = values[2]
-
-                            self.modbus._log(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")
-
+                            print(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")
+                            self.modbus._log(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")    
                 except Exception as e:
                     self.modbus._log(f"Poll error: {e}")
-
-            time.sleep(self.poll_interval)
+            time.sleep(self.refresh_interval/1000.0)
+            # self._stop_event.wait(interval / 1000.0)
 
     # ================= COMMAND =================
-    def move_x(self, value):
-        return self._write_reg(0, value)
-
-    def move_y(self, value):
-        return self._write_reg(1, value)
-
-    def move_z(self, value):
-        return self._write_reg(2, value)
-
-    def start(self):
-        return self._write_reg(10, 1)
-
-    def stop(self):
-        return self._write_reg(10, 0)
+    def home(self) -> tuple [bool, str]:
+        if self.modbus:
+                self.modbus.write_single_coil(1, self.map.COIL_HOME, True)
+        return True ,"GO HOME OK"
     def move_absolute(self, x, y, z, sx, sy, sz):
         try:
-
             # ===== convert về int 16-bit =====
             def to_uint16(val):
                 return int(val) & 0xFFFF
@@ -186,16 +170,36 @@ class MotorControllerService():
         except Exception as e:
             from tkinter import messagebox  
             messagebox.showerror("Move Error", str(e))
+
     def _jog(self, axis, direction, is_on: bool):
         if not self.modbus:
             return
-
         addr = self.map.COIL_JOG[(axis, direction)]
         self.modbus.write_single_coil(
             1,
             addr,
             is_on
-        )        
+        )     
+    def set_all_speeds(self, sp_X, sp_y, sp_z)-> tuple [bool, str]:
+
+        return True ,"Set_all_speeds ok"
+
+    def move_x(self, value):
+        return self._write_reg(0, value)
+
+    def move_y(self, value):
+        return self._write_reg(1, value)
+
+    def move_z(self, value):
+        return self._write_reg(2, value)
+
+    def start(self):
+        return self._write_reg(10, 1)
+
+    def stop(self):
+        return self._write_reg(10, 0)
+    
+
     def enqueue_move_absolute(self, x, y, z, sx, sy, sz):
         self.cmd_queue.put((
             self.move_absolute,

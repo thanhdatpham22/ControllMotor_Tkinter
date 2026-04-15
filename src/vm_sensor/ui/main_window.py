@@ -420,18 +420,42 @@ class MainWindow:
         )
         
 
-        log_box = ttk.LabelFrame(self.motor_tab, text="Command Log", padding=12)
+        # ===== MAIN FRAME =====
+        log_box = ttk.Frame(self.motor_tab, padding=0)
         log_box.grid(row=3, column=1, rowspan=2, sticky="nsew")
         log_box.columnconfigure(0, weight=1)
-        log_box.rowconfigure(0, weight=1)
+        log_box.rowconfigure(1, weight=1)
 
+        # ===== HEADER =====
+        header = ttk.Frame(log_box)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        header.columnconfigure(0, weight=1)
+
+        # Title bên trái
+        ttk.Label(header, text="Command Log", font=("Segoe UI", 10, "bold")).grid(
+            row=0, column=0, sticky="w"
+        )
+
+        # Combobox bên phải
+        self.refresh_var = tk.StringVar(value="100 ms")
+
+        self.refresh_combo = ttk.Combobox(
+            header,
+            textvariable=self.refresh_var,
+            values=["10 ms", "50 ms", "100 ms", "200 ms", "500 ms", "1000 ms"],
+            width=10,
+            state="readonly"
+        )
+        self.refresh_combo.grid(row=0, column=1, sticky="e", padx=(5, 0))
+        self.refresh_combo.bind("<<ComboboxSelected>>", self.on_refresh_change)   
+        # ===== TEXT BOX =====
         self.motor_log_text = ScrolledText(
             log_box,
             font=("Consolas", 10),
             height=12,
             wrap="word",
         )
-        self.motor_log_text.grid(row=0, column=0, sticky="nsew")
+        self.motor_log_text.grid(row=1, column=0, sticky="nsew")
         self.motor_log_text.configure(state="disabled")
     
 
@@ -881,9 +905,9 @@ class MainWindow:
     def _motor_home(self) -> None:
         self._handle_motor_result(self.motor_service.home())
 
-    def _motor_jog(self, axis: str, direction: int) -> None:
-        step = max(0.01, float(self.jog_step_var.get()))
-        self._handle_motor_result(self.motor_service.jog(axis, direction, step))
+    # def _motor_jog(self, axis: str, direction: int) -> None:
+    #     step = max(0.01, float(self.jog_step_var.get()))
+    #     self._handle_motor_result(self.motor_service.jog(axis, direction, step))
 
     def _move_absolute(self):
         try:
@@ -916,9 +940,9 @@ class MainWindow:
 
     def _apply_motor_speeds(self) -> None:
         result = self.motor_service.set_all_speeds(
-            speed_x=float(self.state.speed_x.get()),
-            speed_y=float(self.state.speed_y.get()),
-            speed_z=float(self.state.speed_z.get()),
+            self.state.speed_x.get(),
+            self.state.speed_y.get(),
+            self.state.speed_z.get(),
         )
         self._handle_motor_result(result)
 
@@ -1081,7 +1105,7 @@ class MainWindow:
         positions = self.motor_service.snapshot()["positions"]
         
         return f"X: {positions['x']:.3f}    Y: {positions['y']:.3f}    Z: {positions['z']:.3f}"
-
+    
     def _update_motor_log_ui(self):
         if self.motor_service.modbus:
             log_queue = self.motor_service.modbus.log_queue
@@ -1095,7 +1119,15 @@ class MainWindow:
             self.motor_log_text.see(tk.END)
             self.motor_log_text.configure(state="disabled")
     
-        self.root.after(50, self._update_motor_log_ui)  # 🔥 50ms là đẹp
+        self.root.after(16, self._update_motor_log_ui)  # 🔥 50ms là đẹp
+
+    def on_refresh_change(self, event):
+        interval = int(self.refresh_var.get().split()[0])
+        self.motor_service.set_refresh_interval(interval)
+        print("New refresh:", interval)
+
+        
+
     def _motor_jog_press(self, axis: str, direction: int):
         if not self.motor_service or not self.motor_service.is_connected():
             return
