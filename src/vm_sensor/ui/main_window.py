@@ -1105,11 +1105,17 @@ class MainWindow:
         positions = self.motor_service.snapshot()["positions"]
         
         return f"X: {positions['x']:.3f}    Y: {positions['y']:.3f}    Z: {positions['z']:.3f}"
-    
+    def on_refresh_change(self, event):
+        interval = int(self.refresh_var.get().split()[0])
+        self.motor_service.set_refresh_interval(interval)
+        print("New refresh:", interval)
     def _update_motor_log_ui(self):
         if self.motor_service.modbus:
             log_queue = self.motor_service.modbus.log_queue
+            new_text = self._format_motor_positions()
 
+            if new_text != self.motor_position_var.get():
+                self.motor_position_var.set(new_text)
             self.motor_log_text.configure(state="normal")
 
             while not log_queue.empty():
@@ -1119,15 +1125,7 @@ class MainWindow:
             self.motor_log_text.see(tk.END)
             self.motor_log_text.configure(state="disabled")
     
-        self.root.after(16, self._update_motor_log_ui)  # 🔥 50ms là đẹp
-
-    def on_refresh_change(self, event):
-        interval = int(self.refresh_var.get().split()[0])
-        self.motor_service.set_refresh_interval(interval)
-        print("New refresh:", interval)
-
-        
-
+        self.root.after(50, self._update_motor_log_ui)  # 🔥 50ms là đẹp
     def _motor_jog_press(self, axis: str, direction: int):
         if not self.motor_service or not self.motor_service.is_connected():
             return

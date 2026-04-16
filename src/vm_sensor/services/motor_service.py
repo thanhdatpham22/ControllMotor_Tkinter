@@ -77,7 +77,7 @@ class MotorControllerService():
     def _worker_loop(self):
         while self._polling:
             func, args = self.cmd_queue.get()
-            # print("Have get Queue Signal")
+            print("Have get Queue Signal")
             try:
                 func(*args)
             except Exception as e:
@@ -122,15 +122,16 @@ class MotorControllerService():
             # count += 1
             if self.modbus:
                 try:
-                    res = self.modbus.read_holding_registers(1, 0, 3)
-                    if res :
-                        values = self.modbus._parse_registers(res)
-                        if values:
-                            self.axis_positions["x"] = values[0]
-                            self.axis_positions["y"] = values[1]
-                            self.axis_positions["z"] = values[2]
-                            print(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")
-                            self.modbus._log(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")    
+                    res = self.modbus.read_input_registers(1, 0, 3)
+                    # print("Res: ", res)
+                    values = self.modbus._parse_registers(res)
+                    # print("Values: ", values)
+                    if values:
+                        self.axis_positions["x"] = values[0]
+                        self.axis_positions["y"] = values[1]
+                        self.axis_positions["z"] = values[2]
+                        # print(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")
+                #         self.modbus._log(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")    
                 except Exception as e:
                     self.modbus._log(f"Poll error: {e}")
             time.sleep(self.refresh_interval/1000.0)
@@ -141,7 +142,7 @@ class MotorControllerService():
         if self.modbus:
                 self.modbus.write_single_coil(1, self.map.COIL_HOME, True)
                 time.sleep(0.1)
-                self.modbus.write_single_coil(1,self.map.COIL_HOME, False)
+                self.modbus.write_single_coil(1, self.map.COIL_HOME, False)
         return True ,"GO HOME OK"
     def move_absolute(self, x, y, z, sx, sy, sz):
         try:
@@ -163,9 +164,9 @@ class MotorControllerService():
 
                 # trigger
                 self.modbus.write_single_coil(1, self.map.COIL_SET_POINT, True)
-                time.sleep(0.05)
+                time.sleep(0.1)
                 self.modbus.write_single_coil(1, self.map.COIL_SET_POINT, False)
-
+                print((f"Move to X={x}, Y={y}, Z={z}"))
                 self.modbus._log(f"Move to X={x}, Y={y}, Z={z}")
 
         except Exception as e:

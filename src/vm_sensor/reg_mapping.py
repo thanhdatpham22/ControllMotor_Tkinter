@@ -1,17 +1,21 @@
 class RegisterMap:
-    # ===== COILS =====
+    # ===== COILS_0x0000 =====
     COIL_HOME = 0
     COIL_SET_POINT = 1
     COIL_EMERGENCY = 2
+    COIL_RESTART = 3
     COIL_STOP = 4
-
+    #...........
     COIL_JOG = {
         ("x", -1): 8,
         ("x", 1): 9,
-        ("y", 1): 10,
-        ("y", -1): 11,
-        ("z", 1): 12,
-        ("z", -1): 13,
+        ("y", -1): 10,
+        ("y", 1): 11,
+        ("z", -1): 12,
+        ("z", 1): 13,
+    }
+    COIL_BUMPP = {
+        
     }
 
     # ===== INPUT REGISTERS =====
