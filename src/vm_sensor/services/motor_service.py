@@ -91,7 +91,6 @@ class MotorControllerService():
             self.connected_port = port
             self.timeout = timeout
             self.modbus._log(f"Connected {port}")
-            
             self._polling = True
             self.start_worker()
             self.home()
@@ -141,6 +140,8 @@ class MotorControllerService():
     def home(self) -> tuple [bool, str]:
         if self.modbus:
                 self.modbus.write_single_coil(1, self.map.COIL_HOME, True)
+                time.sleep(0.1)
+                self.modbus.write_single_coil(1,self.map.COIL_HOME, False)
         return True ,"GO HOME OK"
     def move_absolute(self, x, y, z, sx, sy, sz):
         try:
@@ -210,8 +211,6 @@ class MotorControllerService():
             self._jog,
             (axis, direction, is_on)
         ))
-
-
 
     # ================= LOW LEVEL =================
     def _write_reg(self, addr, value):
