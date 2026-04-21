@@ -72,15 +72,8 @@ class MainWindow:
         self.com_port_var = tk.StringVar(value="")
         self.baudrate_var = tk.StringVar(value="115200")
         self.jog_step_var = tk.DoubleVar(value=1.0)
-        # self.speed_x_var = tk.DoubleVar(value=20.0)
-        # self.speed_y_var = tk.DoubleVar(value=20.0)
-        # self.speed_z_var = tk.DoubleVar(value=10.0)
         self.motor_status_var = tk.StringVar(value=self.motor_service.status_message)
         self.motor_position_var = tk.StringVar(value=self._format_motor_positions())
-        # self.abs_x_var = tk.DoubleVar(value=0.0)
-        # self.abs_y_var = tk.DoubleVar(value=0.0)
-        # self.abs_z_var = tk.DoubleVar(value=0.0)
-
         self._configure_style()
         self._build_ui()
 
@@ -234,13 +227,31 @@ class MainWindow:
         self._add_scale_row(tuning_box, 3, "Min Area", self.min_area_var, 100, 10000, 100)
         self._add_scale_row(tuning_box, 4, "Overlay Alpha", self.overlay_alpha_var, 0.1, 0.9, 0.05)
     def _build_motor_tab(self) -> None:
-        self.motor_tab.columnconfigure(0, weight=1)
-        self.motor_tab.columnconfigure(1, weight=1)
+        # ================= ROOT LAYOUT =================
+        self.motor_tab.columnconfigure(0, weight=1, uniform="motor")
+        self.motor_tab.columnconfigure(1, weight=1, uniform="motor")
         self.motor_tab.rowconfigure(0, weight=1)
-        self.motor_tab.rowconfigure(4, weight=1)
 
-        connection_box = ttk.LabelFrame(self.motor_tab, text="COM Connection", padding=12)
-        connection_box.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=(0, 8))
+        left_panel = ttk.Frame(self.motor_tab)
+        right_panel = ttk.Frame(self.motor_tab)
+
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        right_panel.grid(row=0, column=1, sticky="nsew")
+
+        # ================= LEFT PANEL =================
+        left_panel.columnconfigure(0, weight=1)
+        for i in range(5):
+            left_panel.rowconfigure(i, weight=0)
+
+        left_panel.rowconfigure(0, weight=0)  # connection
+        left_panel.rowconfigure(1, weight=0)  # action
+        left_panel.rowconfigure(2, weight=2)  # jog (ưu tiên)
+        left_panel.rowconfigure(3, weight=1)  # speed
+        left_panel.rowconfigure(4, weight=2)  # IO
+        left_panel.rowconfigure(2, minsize=150)
+        # ===== Connection =====
+        connection_box = ttk.LabelFrame(left_panel, text="COM Connection", padding=12)
+        connection_box.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         connection_box.columnconfigure(1, weight=1)
 
         ttk.Label(connection_box, text="COM port").grid(row=0, column=0, sticky="w")
@@ -250,8 +261,9 @@ class MainWindow:
             state="readonly",
         )
         self.com_port_combo.grid(row=0, column=1, sticky="ew", padx=8)
+
         ttk.Button(connection_box, text="Refresh Ports", command=self._refresh_com_ports).grid(
-            row=0, column=2, sticky="w"
+            row=0, column=2
         )
 
         ttk.Label(connection_box, text="Baudrate").grid(row=1, column=0, sticky="w", pady=(10, 0))
@@ -263,67 +275,95 @@ class MainWindow:
             width=12,
         )
         self.baudrate_combo.grid(row=1, column=1, sticky="w", padx=8, pady=(10, 0))
+
         ttk.Button(
             connection_box,
             text="Connect",
             style="Primary.TButton",
             command=self._connect_motor,
-        ).grid(row=1, column=2, sticky="w", pady=(10, 0))
+        ).grid(row=1, column=2, pady=(10, 0))
+
         ttk.Button(
             connection_box,
             text="Disconnect",
             command=self._disconnect_motor,
-        ).grid(row=1, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
+        ).grid(row=1, column=3, padx=(8, 0), pady=(10, 0))
 
         ttk.Label(
             connection_box,
             textvariable=self.motor_status_var,
             style="Status.TLabel",
             wraplength=500,
-            justify="left",
         ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
-        action_box = ttk.LabelFrame(self.motor_tab, text="Motion Actions", padding=12)
-        action_box.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 8))
+        # ===== Action =====
+        action_box = ttk.LabelFrame(left_panel, text="Motion Actions", padding=12)
+        action_box.grid(row=1, column=0, sticky="ew", pady=(0, 8))
 
         ttk.Button(action_box, text="Start", style="Primary.TButton", command=self._motor_start).grid(
-            row=0, column=0, padx=(0, 8)
+            row=0, column=0, padx=5
         )
         ttk.Button(action_box, text="Stop", style="Primary.TButton", command=self._motor_stop).grid(
-            row=0, column=1, padx=(0, 8)
+            row=0, column=1, padx=5
         )
         ttk.Button(action_box, text="Home", style="Primary.TButton", command=self._motor_home).grid(
-            row=0, column=2
+            row=0, column=2, padx=5
         )
-        # ===== Container chia đôi =====
-        jog_container = ttk.Frame(self.motor_tab)
-        jog_container.grid(row=2, column=0, sticky="ew", padx=(0, 8), pady=(0, 8))
 
+        # ===== Jog + Absolute =====
+        jog_container = ttk.Frame(left_panel)
+        jog_container.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
         jog_container.columnconfigure(0, weight=1)
         jog_container.columnconfigure(1, weight=1)
-        jog_box = ttk.LabelFrame(jog_container, text="Jog XYZ", padding=12)
-        jog_box.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        abs_box = ttk.LabelFrame(jog_container, text="Absolute Move", padding=12)
-        abs_box.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-        # jog_box = ttk.LabelFrame(self.motor_tab, text="Jog XYZ", padding=12)
-        # jog_box.grid(row=2, column=0, sticky="ew", padx=(0, 8), pady=(0, 8))
-        # abs_box = ttk.LabelFrame(self.motor_tab, text="Absolute Move", padding=12)
-        # abs_box.grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=(0, 8))
+        jog_container.rowconfigure(0, weight=1)
 
+        jog_box = ttk.LabelFrame(jog_container, text="Jog XYZ", padding=12)
+        abs_box = ttk.LabelFrame(jog_container, text="Absolute Move", padding=12)
+
+        jog_box.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        abs_box.grid(row=0, column=1, sticky="nsew")
+
+        jog_box.columnconfigure(1, weight=1)
+        jog_box.columnconfigure(2, weight=1)
+        abs_box.columnconfigure(0, weight=1)
+        abs_box.columnconfigure(1, weight=1)
+
+        jog_box.rowconfigure(0, weight=1)
+        jog_box.rowconfigure(1, weight=1)
+        jog_box.rowconfigure(2, weight=1)
+        jog_box.rowconfigure(3, weight=1)
+
+        abs_box.rowconfigure(0, weight=1)
+        abs_box.rowconfigure(1, weight=1)
+        abs_box.rowconfigure(2, weight=1)
+        abs_box.rowconfigure(3, weight=1)
+        abs_box.rowconfigure(4, weight=1)
+
+        # --- Absolute ---
         ttk.Label(abs_box, text="Position X").grid(row=0, column=0, sticky="w")
-        ttk.Entry(abs_box, textvariable=self.state.abs_x_var, width=10).grid(row=0, column=1, padx=8)
+        ttk.Entry(abs_box, textvariable=self.state.abs_x_var, width=10).grid(row=0, column=1, sticky="ew")
 
         ttk.Label(abs_box, text="Position Y").grid(row=1, column=0, sticky="w")
-        ttk.Entry(abs_box, textvariable=self.state.abs_y_var, width=10).grid(row=1, column=1, padx=8)
+        ttk.Entry(abs_box, textvariable=self.state.abs_y_var, width=10).grid(row=1, column=1, sticky="ew")
 
         ttk.Label(abs_box, text="Position Z").grid(row=2, column=0, sticky="w")
-        ttk.Entry(abs_box, textvariable=self.state.abs_z_var, width=10).grid(row=2, column=1, padx=8)
+        ttk.Entry(abs_box, textvariable=self.state.abs_z_var, width=10).grid(row=2, column=1, sticky="ew")
+
+        ttk.Button(
+            abs_box,
+            text="Set Position",
+            style="Primary.TButton",
+            command=self._set_absolute,
+        ).grid(row=3, column=0, pady=(10, 0), sticky="ew", padx=(0, 5))
+
         ttk.Button(
             abs_box,
             text="Move To Position",
             style="Primary.TButton",
-            command=self._move_absolute
-        ).grid(row=3, column=0, columnspan=2, pady=(12, 0), sticky="w")
+            command=self._move_absolute,
+        ).grid(row=3, column=1, pady=(10, 0), sticky="ew", padx=(5, 0))
+
+        # --- Jog ---
         ttk.Label(jog_box, text="Jog step").grid(row=0, column=0, sticky="w")
         ttk.Spinbox(
             jog_box,
@@ -332,127 +372,175 @@ class MainWindow:
             increment=0.1,
             textvariable=self.jog_step_var,
             width=10,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            jog_box,
-            text="(unit placeholder: mm / pulse)",
-            style="Status.TLabel",
-        ).grid(row=0, column=2, sticky="w", padx=(12, 0))
+        ).grid(row=0, column=1, sticky="w")
 
-        for row_index, axis_name in enumerate(("X", "Y", "Z"), start=1):
-            pady = (10 if row_index == 1 else 8, 0)
+        for i, axis in enumerate(("X", "Y", "Z"), start=1):
+            ttk.Label(jog_box, text=f"Axis {axis}").grid(row=i, column=0, sticky="w", pady=(8, 0))
 
-            ttk.Label(jog_box, text=f"Axis {axis_name}", width=12).grid(
-                row=row_index, column=0, sticky="w", pady=pady
-            )
+            a = axis.lower()
 
-            axis = axis_name.lower()
+            btn_minus = ttk.Button(jog_box, text=f"{axis}-", width=5)
+            btn_minus.grid(row=i, column=1, padx=(0, 6), pady=(8, 0), sticky="w")
+            btn_minus.bind("<ButtonPress-1>", lambda e, a=a: self._motor_jog_press(a, -1))
+            btn_minus.bind("<ButtonRelease-1>", lambda e, a=a: self._motor_jog_release(a, -1))
+            btn_minus.bind("<Leave>", lambda e, a=a: self._motor_jog_release(a, -1))
 
-            # ===== Nút "-" =====
-            btn_minus = ttk.Button(jog_box, text=f"{axis_name}-")
-            btn_minus.grid(row=row_index, column=1, padx=(0, 8), pady=pady)
+            btn_plus = ttk.Button(jog_box, text=f"{axis}+", width=5)
+            btn_plus.grid(row=i, column=2, pady=(8, 0), sticky="w")
+            btn_plus.bind("<ButtonPress-1>", lambda e, a=a: self._motor_jog_press(a, 1))
+            btn_plus.bind("<ButtonRelease-1>", lambda e, a=a: self._motor_jog_release(a, 1))
+            btn_plus.bind("<Leave>", lambda e, a=a: self._motor_jog_release(a, 1))
 
-            btn_minus.bind("<ButtonPress-1>",
-                lambda e, a=axis: self._motor_jog_press(a, -1)
-            )
-            btn_minus.bind("<ButtonRelease-1>",
-                lambda e, a=axis: self._motor_jog_release(a, -1)
-            )
-            btn_minus.bind("<Leave>",   # 🔥 chống miss release
-                lambda e, a=axis: self._motor_jog_release(a, -1)
-            )
-
-            # ===== Nút "+" =====
-            btn_plus = ttk.Button(jog_box, text=f"{axis_name}+")
-            btn_plus.grid(row=row_index, column=2, pady=pady)
-
-            btn_plus.bind("<ButtonPress-1>",
-                lambda e, a=axis: self._motor_jog_press(a, 1)
-            )
-            btn_plus.bind("<ButtonRelease-1>",
-                lambda e, a=axis: self._motor_jog_release(a, 1)
-            )
-            btn_plus.bind("<Leave>",
-                lambda e, a=axis: self._motor_jog_release(a, 1)
-            )
-
-        speed_box = ttk.LabelFrame(self.motor_tab, text="Axis Speed", padding=12)
-        speed_box.grid(row=3, column=0, sticky="ew", padx=(0, 8), pady=(0, 8))
+        # ===== Speed =====
+        speed_box = ttk.LabelFrame(left_panel, text="Axis Speed", padding=12)
+        speed_box.grid(row=3, column=0, sticky="ew", pady=(0, 8))
         speed_box.columnconfigure(1, weight=1)
-        
+
         self._add_motor_speed_row(speed_box, 0, "Speed X", self.state.speed_x)
         self._add_motor_speed_row(speed_box, 1, "Speed Y", self.state.speed_y)
         self._add_motor_speed_row(speed_box, 2, "Speed Z", self.state.speed_z)
 
-        ttk.Button(
-            speed_box,
-            text="Apply Speed",
-            style="Primary.TButton",
-            command=self._apply_motor_speeds,
-        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        # ttk.Button(
+        #     speed_box,
+        #     text="Apply Speed",
+        #     style="Primary.TButton",
+        #     command=self._apply_motor_speeds,
+        # ).grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="ew")
 
-        preview_box = ttk.LabelFrame(self.motor_tab, text="Camera Position Preview", padding=12)
-        preview_box.grid(row=0, column=1, rowspan=2, sticky="nsew", pady=(0, 8))
+        # ===== IO =====
+        io_box = ttk.LabelFrame(left_panel, text="I/O Signals", padding=12)
+        io_box.grid(row=4, column=0, sticky="nsew", pady=(0, 8))
+        io_box.columnconfigure(0, weight=1)
+        io_box.rowconfigure(1, weight=1)
+
+        ttk.Label(io_box, text="I/O status", style="Status.TLabel").grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
+
+        io_body = ttk.Frame(io_box)
+        io_body.grid(row=1, column=0, sticky="nsew")
+        io_body.columnconfigure(0, weight=1)
+        io_body.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(io_body, highlightthickness=0, height=170)
+        scrollbar = ttk.Scrollbar(io_body, orient="vertical", command=canvas.yview)
+
+        scroll_frame = ttk.Frame(canvas)
+        for i in range(8):
+            scroll_frame.columnconfigure(i, weight=1)
+
+        def _on_scroll_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        scroll_frame.bind("<Configure>", _on_scroll_frame_configure)
+        def _on_canvas_configure(event):
+            canvas.itemconfig("all", width=event.width)
+
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # ===== Input =====
+        ttk.Label(scroll_frame, text="INPUT", font=("Segoe UI", 10, "bold"))\
+        .grid(row=0, column=0, columnspan=4, sticky="w")
+
+
+        self.input_labels = []
+        for i in range(24):
+            lbl = tk.Label(
+                scroll_frame,
+                text=f"IN{i}",
+                width=5,
+                relief="solid",
+                bg="green",   # OFF
+                fg="white",
+            )
+            lbl.grid(row=1 + i // 4,column=i % 4, padx=2, pady=2, sticky="ew")
+            self.input_labels.append(lbl)
+
+        # ===== Output =====
+        ttk.Label(scroll_frame, text="OUTPUT", font=("Segoe UI", 10, "bold"))\
+        .grid(row=0, column=4, columnspan=4, sticky="w")
+
+        self.output_buttons = []
+        self.output_states = [False] * 24
+
+        def toggle_output(idx: int) -> None:
+            self.motor_service.toggle_output(idx)
+            self._update_output_ui()
+
+        for i in range(24):
+            btn = tk.Button(
+                scroll_frame,
+                text=f"OUT{i}",
+                width=5,
+                bg="lightgray",
+                command=lambda i=i: toggle_output(i),
+            )
+            btn.grid(row=1 + i // 4,
+                     column=4 + (i % 4), padx=2, pady=2, sticky="ew")
+            self.output_buttons.append(btn)
+
+        # ================= RIGHT PANEL =================
+        right_panel.columnconfigure(0, weight=1)
+        right_panel.rowconfigure(0, weight=2)  # preview co giãn mạnh
+        right_panel.rowconfigure(1, weight=0)
+        right_panel.rowconfigure(2, weight=1)  # log co giãn
+
+        # ===== Preview =====
+        preview_box = ttk.LabelFrame(right_panel, text="Camera Preview", padding=12)
+        preview_box.grid(row=0, column=0, sticky="nsew", pady=(0, 8))
         preview_box.columnconfigure(0, weight=1)
-        preview_box.rowconfigure(1, weight=1)
-
-        ttk.Label(
-            preview_box,
-            text="Preview follows the active camera source so you can see where Z is looking.",
-            style="Status.TLabel",
-            wraplength=520,
-            justify="left",
-        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        preview_box.rowconfigure(0, weight=1)
 
         self.motor_camera_label = ttk.Label(preview_box, anchor="center")
-        self.motor_camera_label.grid(row=1, column=0, sticky="nsew")
+        self.motor_camera_label.grid(row=0, column=0, sticky="nsew")
+
+        # Nếu bạn đang hiển thị ảnh camera, nên resize ảnh theo kích thước label.
+        # self.motor_camera_label.bind("<Configure>", self._resize_motor_preview)
+
+        # ===== Position =====
+        position_box = ttk.LabelFrame(right_panel, text="Axis Position", padding=12)
+        position_box.grid(row=1, column=0, sticky="ew", pady=(0, 8))
 
         ttk.Label(
-            preview_box,
-            textvariable=self.source_summary_var,
-            style="Status.TLabel",
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
+            position_box,
+            textvariable=self.motor_position_var,
+            font=("Consolas", 11),
+        ).grid(row=0, column=0, sticky="w")
 
-        position_box = ttk.LabelFrame(self.motor_tab, text="Axis Position", padding=12)
-        position_box.grid(row=2, column=1, sticky="ew", pady=(0, 8))
-        ttk.Label(position_box, textvariable=self.motor_position_var, font=("Consolas", 11)).grid(
-            row=0, column=0, sticky="w"
-        )
-        
-
-        # ===== MAIN FRAME =====
-        log_box = ttk.Frame(self.motor_tab, padding=0)
-        log_box.grid(row=3, column=1, rowspan=2, sticky="nsew")
+        # ===== Log =====
+        log_box = ttk.Frame(right_panel)
+        log_box.grid(row=2, column=0, sticky="nsew")
         log_box.columnconfigure(0, weight=1)
         log_box.rowconfigure(1, weight=1)
 
-        # ===== HEADER =====
         header = ttk.Frame(log_box)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(0, weight=1)
 
-        # Title bên trái
         ttk.Label(header, text="Command Log", font=("Segoe UI", 10, "bold")).grid(
             row=0, column=0, sticky="w"
         )
 
-        # Combobox bên phải
         self.refresh_var = tk.StringVar(value="100 ms")
-
         self.refresh_combo = ttk.Combobox(
             header,
             textvariable=self.refresh_var,
-            values=["10 ms", "50 ms", "100 ms", "200 ms", "500 ms", "1000 ms"],
+            values=["1 ms","10 ms", "50 ms", "100 ms", "200 ms", "500 ms", "1000 ms"],
             width=10,
-            state="readonly"
+            state="readonly",
         )
-        self.refresh_combo.grid(row=0, column=1, sticky="e", padx=(5, 0))
-        self.refresh_combo.bind("<<ComboboxSelected>>", self.on_refresh_change)   
-        # ===== TEXT BOX =====
+        self.refresh_combo.grid(row=0, column=1, sticky="e")
+        self.refresh_combo.bind("<<ComboboxSelected>>", self.on_refresh_change)
+
         self.motor_log_text = ScrolledText(
             log_box,
             font=("Consolas", 10),
-            height=12,
             wrap="word",
         )
         self.motor_log_text.grid(row=1, column=0, sticky="nsew")
@@ -666,19 +754,19 @@ class MainWindow:
         title: str,
         variable: tk.DoubleVar,
     ) -> None:
-        ttk.Label(parent, text=title, width=12).grid(
+        ttk.Label(parent, text=title).grid(
             row=row, column=0, sticky="w", padx=(0, 12), pady=4
         )
+        
 
         scale = tk.Scale(
             parent,
             variable=variable,
-            from_=0.1,
-            to=200.0,
+            from_=0,
+            to= 50000,
             orient="horizontal",
-            resolution=0.1,
+            resolution=1,
             showvalue=True,
-            length=250,
             highlightthickness=0,
         )
         scale.grid(row=row, column=1, sticky="ew", pady=4)
@@ -887,6 +975,9 @@ class MainWindow:
         self.motor_status_var.set(message)
         self.status_var.set(message)
         self._refresh_motor_widgets()
+        if self.motor_service:
+            self.motor_service.ui_callback = self._update_input_ui
+        self.motor_service.start_worker(self.root)
         if not ok:
             messagebox.showwarning("Motor", message)
 
@@ -905,11 +996,7 @@ class MainWindow:
     def _motor_home(self) -> None:
         self._handle_motor_result(self.motor_service.home())
 
-    # def _motor_jog(self, axis: str, direction: int) -> None:
-    #     step = max(0.01, float(self.jog_step_var.get()))
-    #     self._handle_motor_result(self.motor_service.jog(axis, direction, step))
-
-    def _move_absolute(self):
+    def _set_absolute(self):
         try:
             x = int(self.state.abs_x_var.get())
             y = int(self.state.abs_y_var.get())
@@ -930,14 +1017,17 @@ class MainWindow:
             if not (Z_MIN <= z <= Z_MAX):
                 raise ValueError(f"Z must be in range [{Z_MIN}, {Z_MAX}]")
             print("MOVE _ABS_ POsistion")       
-            self.motor_service.enqueue_move_absolute(x, y, z, sp_x, sp_y ,sp_z  )
+            self.motor_service.enqueue_set_absolute(x, y, z, sp_x, sp_y, sp_z)
         except ValueError as e:
             messagebox.showerror("Invalid Input", str(e))
             
         except Exception as e:
             messagebox.showerror("Error", str(e))
         
-
+    def _move_absolute(self):
+        if not self.motor_service or not self.motor_service.is_connected():
+            return
+        self.motor_service.enqueue_move()
     def _apply_motor_speeds(self) -> None:
         result = self.motor_service.set_all_speeds(
             self.state.speed_x.get(),
@@ -1103,8 +1193,8 @@ class MainWindow:
 
     def _format_motor_positions(self) -> str:
         positions = self.motor_service.snapshot()["positions"]
-        
-        return f"X: {positions['x']:.3f}    Y: {positions['y']:.3f}    Z: {positions['z']:.3f}"
+        # return f"X: {positions['x']:.3f}    Y: {positions['y']:.3f}    Z: {positions['z']:.3f}"
+        return f"X: {positions['x']}    Y: {positions['y']}    Z: {positions['z']}"
     def on_refresh_change(self, event):
         interval = int(self.refresh_var.get().split()[0])
         self.motor_service.set_refresh_interval(interval)
@@ -1129,15 +1219,24 @@ class MainWindow:
     def _motor_jog_press(self, axis: str, direction: int):
         if not self.motor_service or not self.motor_service.is_connected():
             return
-
         self.motor_service.enqueue_jog(axis, direction, True)
-
 
     def _motor_jog_release(self, axis: str, direction: int):
         if not self.motor_service or not self.motor_service.is_connected():
             return
-
         self.motor_service.enqueue_jog(axis, direction, False) 
+      #=================UPdate INPUT====================
+    def _update_input_ui(self, inputs):
+        for i, val in enumerate(inputs):
+            if i < len(self.input_labels):
+                self.input_labels[i].config(
+                    bg="green" if val else "gray"
+                )
+    #===============Update OUTPUT=====================================
+    def _update_output_ui(self):
+        for i, state in enumerate(self.motor_service.output_states):
+            btn = self.output_buttons[i]
+            btn.config(bg="green" if state else "lightgray")
 
     def _on_close(self) -> None:
         self.camera_service.release()

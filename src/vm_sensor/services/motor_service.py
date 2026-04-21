@@ -122,14 +122,14 @@ class MotorControllerService():
             # count += 1
             if self.modbus:
                 try:
-                    res = self.modbus.read_input_registers(1, 0, 3)
+                    res = self.modbus.read_input_registers(1, 0, 9)
                     # print("Res: ", res)
                     values = self.modbus._parse_registers(res)
-                    # print("Values: ", values)
+                    print("Values: ", values)
                     if values:
                         self.axis_positions["x"] = values[0]
-                        self.axis_positions["y"] = values[1]
-                        self.axis_positions["z"] = values[2]
+                        self.axis_positions["y"] = values[3]
+                        self.axis_positions["z"] = values[6]
                         # print(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")
                 #         self.modbus._log(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")    
                 except Exception as e:
