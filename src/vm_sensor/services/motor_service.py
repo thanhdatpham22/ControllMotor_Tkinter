@@ -1,4 +1,3 @@
-
 import threading
 import time
 import queue
@@ -40,6 +39,8 @@ class MotorControllerService():
         self.map = reg_map
         self.param = AppState()
         self.cmd_queue = queue.Queue()
+        self.input_states = [False] * 24
+        self.output_states = [False] * 24
     def snapshot(self) -> SnapshotDict:
         return {
             "connected": bool(self.is_connected()),
@@ -57,6 +58,8 @@ class MotorControllerService():
                 "y": float(self.axis_speeds["y"]),
                 "z": float(self.axis_speeds["z"]),
             },
+            "input_states": list(self.input_states),
+            "output_states": list(self.output_states),
 
             "status": str(self.status_message),
         }
@@ -125,13 +128,23 @@ class MotorControllerService():
                     res = self.modbus.read_input_registers(1, 0, 9)
                     # print("Res: ", res)
                     values = self.modbus._parse_registers(res)
-                    print("Values: ", values)
+                    # print("Values: ", values)
                     if values:
                         self.axis_positions["x"] = values[0]
                         self.axis_positions["y"] = values[3]
                         self.axis_positions["z"] = values[6]
-                        # print(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")
-                #         self.modbus._log(f"POS X:{values[0]} Y:{values[1]} Z:{values[2]}")    
+                    start_in = self.map.COIL_INPUT[1]
+                    res_in = self.modbus.read_discrete_inputs(1, start_in, 24)
+                    # print("Res In: ", res_in)  
+                    if res_in is not None:
+                        self.input_states = [bool(bit) for bit in res_in]
+
+                    start_out = self.map.COIL_OUT[1]
+                    res_out = self.modbus.read_coils(1, start_out, 24)
+                    # print("Res Out: ", res_out)    
+                    if res_out is not None:
+                        self.output_states = [bool(bit) for bit in res_out]
+                        
                 except Exception as e:
                     self.modbus._log(f"Poll error: {e}")
             time.sleep(self.refresh_interval/1000.0)
@@ -143,6 +156,7 @@ class MotorControllerService():
                 self.modbus.write_single_coil(1, self.map.COIL_HOME, True)
                 time.sleep(0.1)
                 self.modbus.write_single_coil(1, self.map.COIL_HOME, False)
+        print("Go Home")
         return True ,"GO HOME OK"
     def move_absolute(self, x, y, z, sx, sy, sz):
         try:
@@ -161,18 +175,19 @@ class MotorControllerService():
                     self.map.REG_TARGET["x"],
                     values
                 )
-
-                # trigger
-                self.modbus.write_single_coil(1, self.map.COIL_SET_POINT, True)
-                time.sleep(0.1)
-                self.modbus.write_single_coil(1, self.map.COIL_SET_POINT, False)
                 print((f"Move to X={x}, Y={y}, Z={z}"))
                 self.modbus._log(f"Move to X={x}, Y={y}, Z={z}")
 
         except Exception as e:
             from tkinter import messagebox  
             messagebox.showerror("Move Error", str(e))
-
+    def set_absolute(self):
+        # trigger
+        self.modbus.write_single_coil(1, self.map.COIL_SET_POINT, True)
+        time.sleep(0.1)
+        self.modbus.write_single_coil(1, self.map.COIL_SET_POINT, False)
+        print("Set Absolute")
+        
     def _jog(self, axis, direction, is_on: bool):
         if not self.modbus:
             return
@@ -183,18 +198,8 @@ class MotorControllerService():
             is_on
         )     
     def set_all_speeds(self, sp_X, sp_y, sp_z)-> tuple [bool, str]:
-
         return True ,"Set_all_speeds ok"
-
-    def move_x(self, value):
-        return self._write_reg(0, value)
-
-    def move_y(self, value):
-        return self._write_reg(1, value)
-
-    def move_z(self, value):
-        return self._write_reg(2, value)
-
+        
     def start(self):
         return self._write_reg(10, 1)
 
@@ -207,10 +212,29 @@ class MotorControllerService():
             self.move_absolute,
             (x, y, z, sx, sy, sz)
         ))
+    def enqueue_set_absolute(self):
+        self.cmd_queue.put((
+            self.set_absolute,
+            ()
+        ))
     def enqueue_jog(self, axis, direction, is_on: bool):
         self.cmd_queue.put((
             self._jog,
             (axis, direction, is_on)
+        ))
+
+    def _do_toggle_output(self, idx: int):
+        if not self.modbus:
+            return
+        addr = self.map.COIL_OUT[idx + 1]
+        current_state = self.output_states[idx]
+        new_state = not current_state
+        self._write_reg(addr, new_state)
+
+    def toggle_output(self, idx: int):
+        self.cmd_queue.put((
+            self._do_toggle_output,
+            (idx,)
         ))
 
     # ================= LOW LEVEL =================

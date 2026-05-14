@@ -17,6 +17,7 @@ class ModbusRTUService:
         self.lock = threading.Lock()
         self.command_log: deque[str] = deque(maxlen=200)
         self.log_queue = queue.Queue(maxsize=1000)
+        
     # ================= CRC16 =================
     def crc16(self, data: bytes):
         crc = 0xFFFF
@@ -29,6 +30,7 @@ class ModbusRTUService:
                 else:
                     crc >>= 1
         return crc
+        
     #================VALID_CRC========================
     def validate_crc(self, response):
         if len(response) < 3:
@@ -37,6 +39,7 @@ class ModbusRTUService:
         crc_received = response[-2] | (response[-1] << 8)
         crc_calc = self.crc16(data)
         return crc_received == crc_calc
+        
     # ================= Build frame =================
     def build_frame(self, slave_id, function_code, payload: bytes):
         frame = bytes([slave_id, function_code]) + payload
@@ -47,46 +50,66 @@ class ModbusRTUService:
     def send_request(self, frame: bytes):
         with self.lock:
             self.ser.reset_input_buffer()
+            # Đợi một chút để theo chuẩn T3.5 của Modbus (khoảng thời gian nghỉ)
+            # 115200 bps -> 1 ms là đủ an toàn.
+            time.sleep(0.005)
 
             self._log(f"TX: {frame.hex(' ')}")
             self.ser.write(frame)
+            self.ser.flush()
 
-            # đọc header
-            header = self.ser.read(3)
-            if len(header) < 3:
+            # Đọc tối thiểu 2 byte: slave, function_code
+            header = self.ser.read(2)
+            if len(header) < 2:
                 self._log("RX timeout (header)")
-                return b''
+                return header
 
-            byte_count = header[2]
+            function_code = header[1]
+            
+            # Tính toán số byte cần đọc thêm dựa trên function_code
+            if function_code & 0x80:
+                # Đây là Exception response: [Slave, Func+0x80, ExceptionCode, CRC_L, CRC_H] -> Tổng = 5
+                # Đã đọc 2 byte, còn lại 3 byte
+                remaining = 3
+            elif function_code in [0x01, 0x02, 0x03, 0x04]:
+                # Đây là Read response: [Slave, Func, ByteCount, Data..., CRC_L, CRC_H]
+                byte_count_byte = self.ser.read(1)
+                if not byte_count_byte:
+                    return header
+                header += byte_count_byte
+                remaining = byte_count_byte[0] + 2 # +2 cho CRC
+            elif function_code in [0x05, 0x06, 0x0F, 0x10]:
+                # Đây là Write response: [Slave, Func, Addr_H, Addr_L, Val_H, Val_L, CRC_L, CRC_H] -> Tổng = 8
+                # Đã đọc 2 byte, còn lại 6 byte
+                remaining = 6
+            else:
+                # Không hỗ trợ đoán độ dài, đọc đại 6 byte
+                remaining = 6
 
-            # đọc data + CRC
-            body = self.ser.read(byte_count + 2)
-
+            body = self.ser.read(remaining)
             response = header + body
 
             self._log(f"RX: {response.hex(' ')}")
             return response
+
     #===============CHECK=========================
     def check_exception(self, response):
         if len(response) >= 3:
             func = response[1]
             if func & 0x80:
                 error_code = response[2]
-                raise Exception(f"Modbus Exception: {error_code}")
+                raise Exception(f"Exception: {error_code}")
+                
     # ================= PARSE =================
     def _parse_registers(self, response):
         if not response or len(response) < 5:
-            print("Invalid response:", response)
             return None
 
         byte_count = response[2]
-
         if len(response) < 3 + byte_count + 2:
-            print("Incomplete frame:", response)
             return None
 
         data = response[3:3 + byte_count]
-
         values = []
         for i in range(0, len(data), 2):
             val = (data[i] << 8) | data[i + 1]
@@ -144,8 +167,6 @@ class ModbusRTUService:
             quantity >> 8, quantity & 0xFF
         ])
         frame = self.build_frame(slave_id, 0x04, payload)
-        # res = self.send_request(frame)
-        # # print("read_input_registers ",res)
         return self.send_request(frame)
 
     # ================= 0x05 =================
@@ -208,6 +229,7 @@ class ModbusRTUService:
     # ================= LOG =================
     def get_recent_log(self) -> list[str]:
         return list(self.command_log)
+        
     def _log(self, msg):
         timestamp = time.strftime("%H:%M:%S")
         line = f"[{timestamp}] {msg}"
