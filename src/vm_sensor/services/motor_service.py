@@ -201,7 +201,12 @@ class MotorControllerService():
         return True ,"Set_all_speeds ok"
         
     def start(self):
-        return self._write_reg(10, 1)
+        if self.modbus:
+            self.modbus.write_single_coil(1, self.map.COIL_HOME, True)
+            time.sleep(0.1)
+            self.modbus.write_single_coil(1, self.map.COIL_HOME, False)
+        print("Go Home")
+        return 
 
     def stop(self):
         return self._write_reg(10, 0)
@@ -222,7 +227,16 @@ class MotorControllerService():
             self._jog,
             (axis, direction, is_on)
         ))
-
+    def enqueue_start(self):
+        self.cmd_queue.put((
+            self.start,
+            ()
+        ))
+    # def enqueue_stop(self):
+    #     self.cmd_queue.put((
+    #         self.stop,
+    #         ()
+    #     ))
     def _do_toggle_output(self, idx: int):
         if not self.modbus:
             return

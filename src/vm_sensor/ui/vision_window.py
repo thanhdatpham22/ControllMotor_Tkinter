@@ -23,6 +23,8 @@ class VisionWindow(BaseWindow):
         self.segment_result: SegmentResult | None = None
         self.realtime_photo = None
         self.segment_photo = None
+        
+        self.cell_colors = {}
 
         self._build_ui()
 
@@ -114,6 +116,11 @@ class VisionWindow(BaseWindow):
         val_lbl = tk.Label(parent, textvariable=var, font=("Segoe UI", 11, "bold"), fg=color, bg="#f5f6f8")
         val_lbl.grid(row=row, column=1, sticky="w", padx=10, pady=5)
 
+    def update_cell_color(self, tray_index, r, c, color):
+        self.cell_colors[(tray_index, r, c)] = color
+        tag = f"tray_{tray_index}_cell_{r}_{c}"
+        self.tray_canvas.itemconfig(tag, fill=color)
+
     def _draw_tray_grid(self):
         self.tray_canvas.delete("all")
         w = self.tray_canvas.winfo_width()
@@ -152,7 +159,9 @@ class VisionWindow(BaseWindow):
                     x2 = x1 + cell_w
                     y2 = y1 + cell_h
                     # Ô chính của table
-                    self.tray_canvas.create_rectangle(x1, y1, x2, y2, outline="#555", fill="#2a2a2a", tags=f"tray_{t}_cell_{r}_{c}")
+                    default_color = "#2a2a2a"
+                    color = self.cell_colors.get((t, r, c), default_color)
+                    self.tray_canvas.create_rectangle(x1, y1, x2, y2, outline="#555", fill=color, tags=f"tray_{t}_cell_{r}_{c}")
                     # Điểm mô phỏng vị trí trung tâm ô
                     self.tray_canvas.create_oval(x1+cell_w/2-2, y1+cell_h/2-2, x1+cell_w/2+2, y1+cell_h/2+2, fill="#777")
 

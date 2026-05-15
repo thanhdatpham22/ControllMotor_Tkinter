@@ -326,7 +326,7 @@ class MotorWindow(BaseWindow):
         scale.grid(row=row, column=1, sticky="ew", pady=4)
 
     def _motor_start(self) -> None:
-        self._handle_motor_result(self.app.motor_service.start())
+         self.app.motor_service.enqueue_start(self)
 
     def _motor_stop(self) -> None:
         self._handle_motor_result(self.app.motor_service.stop())

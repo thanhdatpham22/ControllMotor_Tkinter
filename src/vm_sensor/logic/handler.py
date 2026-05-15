@@ -101,20 +101,9 @@ class TrayScanHandler:
                 self.app.status_var.set(f"Tray Scanning: Point {i+1}/{len(grid)} - Coord: {pt['x']},{pt['y']},{pt['z']}")
                 self.app.main_tab.item_count_var.set(f"{i+1} / {len(grid)}")
                 
-                # Cập nhật màu sắc trên Canvas Tray Map
-                # Phải đoán xem đang ở khay nào dựa trên tray_index (0 hoặc 1)
-                # i là index trong grid (0..74)
-                # Trình tự: row 0..4, col 0..14
-                # Do pattern snake nên phải cẩn thận khi map ngược lại index vẽ
-                # Nhưng tạm thời ta chỉ cần đổi màu dựa trên tags đã gắn: tags=f"tray_{t}_cell_{r}_{c}"
-                # Để đơn giản, ta lặp qua grid theo r, c và tìm tag
-                # Vì grid được tạo bởi 5 rows * 15 cols, ta có thể tính ngược r, c
                 r = i // 15
                 c_snake = i % 15
                 c = c_snake if r % 2 == 0 else (14 - c_snake)
-                
-                tray_tag = f"tray_{self._current_tray_index}_cell_{r}_{c}"
-                self.app.main_tab.tray_canvas.itemconfig(tray_tag, fill="#28a745") # Green
                 
                 # Gửi lệnh di chuyển
                 self.app.motor_service.enqueue_move_absolute(
@@ -126,7 +115,24 @@ class TrayScanHandler:
                 # Cập nhật Cycle Time tạm tính
                 self.app.main_tab.cycle_time_var.set(f"{time.time() - start_time:.2f}s")
                 
-                time.sleep(2) 
+                # Dừng 1s theo yêu cầu để ổn định và chụp ảnh
+                time.sleep(0.5) 
+
+                # Gọi hàm capture và xử lý ảnh có sẵn từ main_tab
+                self.app.main_tab._capture_segment()
+                
+                # Lấy kết quả
+                segment_result = self.app.main_tab.segment_result
+                
+                if segment_result and len(segment_result.polygons) > 0:
+                    color = "#dc3545"  # Red
+                else:
+                    color = "#28a745"  # Green
+                
+                def update_grid_color(tr_idx=self._current_tray_index, row=r, col=c, colr=color):
+                    self.app.main_tab.update_cell_color(tr_idx, row, col, colr)
+                    
+                self.app.root.after(0, update_grid_color)
                 
             if not self._stop_event.is_set():
                 self.app.status_var.set("Scan Completed successfully.")
