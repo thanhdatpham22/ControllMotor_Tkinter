@@ -138,7 +138,7 @@ class RegisterMap:
         24: "Out 24",
     }
 
-    # ===== INPUT REGISTERS =====
+    # ===== INPUT REGISTERS 3000x=====
     REG_POS = {
         "x": 0,
         "y": 3,

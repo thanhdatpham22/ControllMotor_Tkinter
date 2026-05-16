@@ -36,8 +36,8 @@ class MotorWindow(BaseWindow):
         left_panel = ttk.Frame(self)
         right_panel = ttk.Frame(self)
 
-        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        right_panel.grid(row=0, column=1, sticky="nsew")
+        right_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        left_panel.grid(row=0, column=1, sticky="nsew")
 
         # ================= LEFT PANEL =================
         left_panel.columnconfigure(0, weight=1)
@@ -108,50 +108,55 @@ class MotorWindow(BaseWindow):
         ).grid(row=3, column=1, pady=(10, 0), sticky="ew", padx=(5, 0))
 
         # --- Jog ---
-        ttk.Label(jog_box, text="Jog step").grid(row=0, column=0, sticky="w")
-        ttk.Spinbox(
-            jog_box,
-            from_=0.01,
-            to=1000.0,
-            increment=0.1,
-            textvariable=self.jog_step_var,
-            width=10,
-        ).grid(row=0, column=1, sticky="w")
+        # ttk.Label(jog_box, text="Jog step").grid(row=0, column=0, sticky="w")
+        # ttk.Spinbox(
+        #     jog_box,
+        #     from_=0.01,
+        #     to=1000.0,
+        #     increment=0.1,
+        #     textvariable=self.jog_step_var,
+        #     width=10,
+        # ).grid(row=0, column=1, sticky="w")
 
         for i, axis in enumerate(("X", "Y", "Z"), start=1):
-            ttk.Label(jog_box, text=f"Axis {axis}").grid(row=i, column=0, sticky="w", pady=(8, 0))
+            ttk.Label(jog_box, text=f"Axis: {axis}").grid(row=i, column=0, sticky="w", pady=(8, 0), padx=(0, 20))
 
             a = axis.lower()
 
-            btn_minus = ttk.Button(jog_box, text=f"{axis}-", width=5)
+            btn_minus = ttk.Button(jog_box, text=f"{axis}-", width=10, padding=(10, 10))
             btn_minus.grid(row=i, column=1, padx=(0, 6), pady=(8, 0), sticky="w")
             btn_minus.bind("<ButtonPress-1>", lambda e, a=a: self._motor_jog_press(a, -1))
             btn_minus.bind("<ButtonRelease-1>", lambda e, a=a: self._motor_jog_release(a, -1))
             btn_minus.bind("<Leave>", lambda e, a=a: self._motor_jog_release(a, -1))
 
-            btn_plus = ttk.Button(jog_box, text=f"{axis}+", width=5)
+            btn_plus = ttk.Button(jog_box, text=f"{axis}+", width=10, padding=(10, 10))
             btn_plus.grid(row=i, column=2, pady=(8, 0), sticky="w")
             btn_plus.bind("<ButtonPress-1>", lambda e, a=a: self._motor_jog_press(a, 1))
             btn_plus.bind("<ButtonRelease-1>", lambda e, a=a: self._motor_jog_release(a, 1))
             btn_plus.bind("<Leave>", lambda e, a=a: self._motor_jog_release(a, 1))
             
         # ===== TEACH POINTS (NEW) =====
-        self.teach_container = ttk.LabelFrame(left_panel, text="Teach Trays", padding=8)
+        self.teach_container = ttk.LabelFrame(left_panel, padding=8)
         self.teach_container.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
         self.teach_container.columnconfigure(0, weight=1)
         self.teach_container.rowconfigure(1, weight=1)
 
-        tool_bar = ttk.Frame(self.teach_container)
-        tool_bar.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        ttk.Button(tool_bar, text="Save Points to TXT", command=self._save_teach_points).pack(side="right")
-        ttk.Button(tool_bar, text="Load Points from TXT", command=self._load_teach_points).pack(side="right", padx=(5, 5))
-        ttk.Button(tool_bar, text="Add Tray", command=self._add_tray_ui).pack(side="left")
+        # Custom header widget for LabelFrame (Title + Buttons on the border)
+        header_frame = ttk.Frame(self.teach_container)
+        ttk.Label(header_frame, text="Teach Trays", font=("Segoe UI", 10, "bold")).pack(side="left")
+        
+        ttk.Button(header_frame, text="Save TXT", command=self._save_teach_points, width=10).pack(side="right", padx=(5, 0))
+        ttk.Button(header_frame, text="Load TXT", command=self._load_teach_points, width=10).pack(side="right", padx=(20, 0))
+        
+        self.teach_container.configure(labelwidget=header_frame)
 
         # Create a scrollable canvas for trays if there are many
         canvas = tk.Canvas(self.teach_container, highlightthickness=0, height=180)
         scrollbar = ttk.Scrollbar(self.teach_container, orient="vertical", command=canvas.yview)
         
         self.trays_frame = ttk.Frame(canvas)
+        self.trays_frame.columnconfigure(0, weight=1)
+        self.trays_frame.columnconfigure(1, weight=1)
         self.trays_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda e: canvas.itemconfig("all", width=e.width))
         canvas.create_window((0, 0), window=self.trays_frame, anchor="nw")
@@ -374,9 +379,7 @@ class MotorWindow(BaseWindow):
 
     def _handle_motor_result(self, result: tuple[bool, str]) -> None:
         _, message = result
-        if hasattr(self.app, 'settings_tab'):
-            self.app.settings_tab.motor_status_var.set(message)
-        self.app.status_var.set(message)
+        self.app.status_var.set(message)  # Hiển thị lên thanh status bar cố định
         self._refresh_motor_widgets()
 
     def _refresh_motor_widgets(self) -> None:
@@ -454,42 +457,44 @@ class MotorWindow(BaseWindow):
         self.motor_camera_label.configure(image=self.motor_photo)
 
     def _add_tray_ui(self):
-        tray_index = len(self.tray_data) + 1
-        
-        tray_frame = ttk.Frame(self.trays_frame)
-        tray_frame.pack(fill="x", pady=2, expand=True)
+        tray_index = len(self.tray_data)
 
-        header_btn = ttk.Button(tray_frame, text=f"▼ Tray {tray_index}", cursor="hand2")
+        tray_frame = ttk.Frame(self.trays_frame)
+        grid_row = tray_index // 2
+        grid_col = tray_index % 2
+        tray_frame.grid(row=grid_row, column=grid_col, sticky="nsew", padx=4, pady=4)
+
+        header_btn = ttk.Button(tray_frame, text=f"▼ Tray {tray_index + 1}", cursor="hand2")
         header_btn.pack(fill="x")
-        
+
         body_frame = ttk.Frame(tray_frame, padding=(10, 5))
         body_frame.pack(fill="x")
-        
-        # Define toggle mechanism
-        def toggle_tray(f=body_frame, b=header_btn, idx=tray_index):
-            if f.winfo_ismapped():
-                f.pack_forget()
-                b.configure(text=f"► Tray {idx}")
-            else:
-                f.pack(fill="x")
-                b.configure(text=f"▼ Tray {idx}")
-                
-        header_btn.configure(command=toggle_tray)
+
+        # Toggle collapse/expand
+        # def toggle_tray(f=body_frame, b=header_btn, idx=tray_index + 1):
+        #     if f.winfo_ismapped():
+        #         f.pack_forget()
+        #         b.configure(text=f"► Tray {idx}")
+        #     else:
+        #         f.pack(fill="x")
+        #         b.configure(text=f"▼ Tray {idx}")
+
+        # header_btn.configure(command=toggle_tray)
 
         # Action Buttons for Scan
         action_row = ttk.Frame(body_frame)
         action_row.pack(fill="x", pady=(5, 10))
-        
+
         ttk.Button(
-            action_row, 
-            text="▶ Start Scan (15x5)", 
+            action_row,
+            text="▶ Start Scan (15x5)",
             style="Primary.TButton",
-            command=lambda idx=tray_index-1: self.app.scan_handler.start_scan(idx)
+            command=lambda idx=tray_index: self.app.scan_handler.start_scan(idx)
         ).pack(side="left", padx=5)
-        
+
         ttk.Button(
-            action_row, 
-            text="⏹ Stop", 
+            action_row,
+            text="⏹ Stop",
             command=self.app.scan_handler.stop_scan
         ).pack(side="left", padx=5)
 
@@ -498,19 +503,19 @@ class MotorWindow(BaseWindow):
         for p in range(1, 4):
             row_frame = ttk.Frame(body_frame)
             row_frame.pack(fill="x", pady=2)
-            
+
             ttk.Label(row_frame, text=f"P{p}", width=3, font=("Segoe UI", 9, "bold")).pack(side="left")
             x_var = tk.IntVar(value=0)
             y_var = tk.IntVar(value=0)
             z_var = tk.IntVar(value=0)
-            
+
             ttk.Label(row_frame, text="X").pack(side="left", padx=(5,2))
             ttk.Entry(row_frame, textvariable=x_var, width=6).pack(side="left")
             ttk.Label(row_frame, text="Y").pack(side="left", padx=(5,2))
             ttk.Entry(row_frame, textvariable=y_var, width=6).pack(side="left")
             ttk.Label(row_frame, text="Z").pack(side="left", padx=(5,2))
             ttk.Entry(row_frame, textvariable=z_var, width=6).pack(side="left")
-            
+
             def get_pos(xv=x_var, yv=y_var, zv=z_var):
                 pos = self.app.motor_service.snapshot()["positions"]
                 xv.set(str(pos['x']))
@@ -525,7 +530,7 @@ class MotorWindow(BaseWindow):
                     sp_x = int(self.app.state.speed_x.get())
                     sp_y = int(self.app.state.speed_y.get())
                     sp_z = int(self.app.state.speed_z.get())
-                    
+
                     X_MIN, X_MAX = 0, 55000
                     Y_MIN, Y_MAX = 0, 33500
                     Z_MIN, Z_MAX = 0, 20000
@@ -535,7 +540,7 @@ class MotorWindow(BaseWindow):
                         raise ValueError(f"Y must be in range [{Y_MIN}, {Y_MAX}]")
                     if not (Z_MIN <= z <= Z_MAX):
                         raise ValueError(f"Z must be in range [{Z_MIN}, {Z_MAX}]")
-                        
+
                     self.app.motor_service.enqueue_move_absolute(x, y, z, sp_x, sp_y, sp_z)
                     self._move_absolute()
                 except ValueError as e:
@@ -546,7 +551,7 @@ class MotorWindow(BaseWindow):
             ttk.Button(row_frame, text="Move", command=move_to, width=6).pack(side="right", padx=(5,0))
             ttk.Button(row_frame, text="Get Pos", command=get_pos, width=8).pack(side="right", padx=(5,0))
             points_vars.append({"x": x_var, "y": y_var, "z": z_var})
-            
+
         self.tray_data.append(points_vars)
 
     def _autoload_teach_points(self):
@@ -575,10 +580,6 @@ class MotorWindow(BaseWindow):
                 lines = [l.strip() for l in f.readlines() if l.strip()]
             
             line_idx = 0
-            tray_needed = (len(lines) + 2) // 3
-            
-            while len(self.tray_data) < tray_needed:
-                self._add_tray_ui()
                 
             for tray in self.tray_data:
                 for pt in tray:

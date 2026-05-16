@@ -13,7 +13,6 @@ class SettingWindow(BaseWindow):
         # --- Motor COM Vars ---
         self.com_port_var = tk.StringVar(value="")
         self.baudrate_var = tk.StringVar(value="115200")
-        self.motor_status_var = tk.StringVar(value=self.app.motor_service.status_message)
         
         # --- Vision Vars ---
         self.source_type_var = tk.StringVar(value="camera")
@@ -25,6 +24,14 @@ class SettingWindow(BaseWindow):
         self.model_path_var = tk.StringVar(value="")
         self.source_summary_var = tk.StringVar(value="Source: OpenCV camera #0")
         self.basler_sdk_var = tk.StringVar(value=self.app.basler_service.sdk_status())
+
+        # --- Access & Product Vars ---
+        self.username_var = tk.StringVar(value="")
+        self.password_var = tk.StringVar(value="")
+        self.user_role_var = tk.StringVar(value="worker")
+        self.product_model_var = tk.StringVar(value="A17LTE")
+        self.new_model_var = tk.StringVar(value="")
+        self.product_models_list = ["A17LTE", "A16", "4G Version", "5G Version", "Custom Prototype"]
         
         self._build_ui()
         self._refresh_basler_devices(silent=True)
@@ -32,176 +39,191 @@ class SettingWindow(BaseWindow):
         self._update_source_widgets()
 
     def _build_ui(self) -> None:
-        self.columnconfigure(0, weight=1)
+        # ================= ROOT LAYOUT =================
+        self.columnconfigure(0, weight=1, uniform="motor")
+        self.columnconfigure(1, weight=1, uniform="motor")
+        self.columnconfigure(2, weight=1, uniform="motor")
+        self.rowconfigure(0, weight=1)
 
-        # ---------------------
-        # COM CONNECTION
-        # ---------------------
-        connection_box = ttk.LabelFrame(self, text="COM Connection", padding=12)
-        connection_box.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        left1_panel = ttk.Frame(self)
+        left2_panel = ttk.Frame(self)
+        right_panel = ttk.Frame(self)
+
+        left1_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        left2_panel.grid(row=0, column=1, sticky="nsew", padx=(0, 8))
+        right_panel.grid(row=0, column=2, sticky="nsew")
+
+        # ---------------------------------------------------------
+        # LEFT 1: COM CONNECTION & YOLO MODEL
+        # ---------------------------------------------------------
+        connection_box = ttk.LabelFrame(left1_panel, text="COM Connection", padding=12)
+        connection_box.pack(fill="x", pady=(0, 12))
         connection_box.columnconfigure(1, weight=1)
 
         ttk.Label(connection_box, text="COM port").grid(row=0, column=0, sticky="w")
-        self.com_port_combo = ttk.Combobox(
-            connection_box,
-            textvariable=self.com_port_var,
-            state="readonly",
-        )
+        self.com_port_combo = ttk.Combobox(connection_box, textvariable=self.com_port_var, state="readonly")
         self.com_port_combo.grid(row=0, column=1, sticky="ew", padx=8)
-
-        ttk.Button(connection_box, text="Refresh Ports", command=self._refresh_com_ports).grid(
-            row=0, column=2
-        )
+        ttk.Button(connection_box, text="Refresh", command=self._refresh_com_ports).grid(row=0, column=2)
 
         ttk.Label(connection_box, text="Baudrate").grid(row=1, column=0, sticky="w", pady=(10, 0))
-        self.baudrate_combo = ttk.Combobox(
-            connection_box,
-            textvariable=self.baudrate_var,
-            values=["9600", "19200", "38400", "57600", "115200"],
-            state="readonly",
-            width=12,
-        )
+        self.baudrate_combo = ttk.Combobox(connection_box, textvariable=self.baudrate_var, values=["9600", "19200", "38400", "57600", "115200"], state="readonly", width=12)
         self.baudrate_combo.grid(row=1, column=1, sticky="w", padx=8, pady=(10, 0))
 
-        ttk.Button(
-            connection_box,
-            text="Connect",
-            style="Primary.TButton",
-            command=self._connect_motor,
-        ).grid(row=1, column=2, pady=(10, 0))
+        btn_fm = ttk.Frame(connection_box)
+        btn_fm.grid(row=2, column=0, columnspan=3, pady=(10, 0), sticky="ew")
+        ttk.Button(btn_fm, text="Connect", style="Primary.TButton", command=self._connect_motor).pack(side="left", expand=True, fill="x", padx=(0, 4))
+        ttk.Button(btn_fm, text="Disconnect", command=self._disconnect_motor).pack(side="right", expand=True, fill="x", padx=(4, 0))
 
-        ttk.Button(
-            connection_box,
-            text="Disconnect",
-            command=self._disconnect_motor,
-        ).grid(row=1, column=3, padx=(8, 0), pady=(10, 0))
-
-        ttk.Label(
-            connection_box,
-            textvariable=self.motor_status_var,
-            style="Status.TLabel",
-            wraplength=500,
-        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(10, 0))
-
-        # ---------------------
-        # SOURCE
-        # ---------------------
-        source_box = ttk.LabelFrame(self, text="Source", padding=12)
-        source_box.grid(row=1, column=0, sticky="ew", pady=(0, 12))
-        source_box.columnconfigure(1, weight=1)
-        source_box.columnconfigure(2, weight=1)
-
-        ttk.Label(source_box, text="Input source").grid(row=0, column=0, sticky="w")
-        ttk.Radiobutton(
-            source_box,
-            text="Camera",
-            value="camera",
-            variable=self.source_type_var,
-            command=self._update_source_widgets,
-        ).grid(row=0, column=1, sticky="w")
-        ttk.Radiobutton(
-            source_box,
-            text="Image Folder",
-            value="folder",
-            variable=self.source_type_var,
-            command=self._update_source_widgets,
-        ).grid(row=0, column=2, sticky="w", padx=(12, 0))
-
-        ttk.Label(source_box, text="Folder path").grid(row=1, column=0, sticky="w", pady=(10, 0))
-        self.folder_entry = ttk.Entry(source_box, textvariable=self.image_folder_var)
-        self.folder_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=(10, 0))
-        self.folder_browse_button = ttk.Button(
-            source_box,
-            text="Browse",
-            command=self._browse_image_folder,
-        )
-        self.folder_browse_button.grid(row=1, column=2, sticky="w", pady=(10, 0))
-        self.source_apply_button = ttk.Button(
-            source_box,
-            text="Apply Source",
-            command=self._apply_source,
-        )
-        self.source_apply_button.grid(row=1, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
-
-        # ---------------------
-        # YOLO MODEL
-        # ---------------------
-        model_box = ttk.LabelFrame(self, text="YOLO Model", padding=12)
-        model_box.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        model_box = ttk.LabelFrame(left1_panel, text="YOLO Model", padding=12)
+        model_box.pack(fill="x", pady=(0, 12))
         model_box.columnconfigure(1, weight=1)
 
         ttk.Label(model_box, text="Model path").grid(row=0, column=0, sticky="w")
-        ttk.Entry(model_box, textvariable=self.model_path_var).grid(
-            row=0, column=1, sticky="ew", padx=8
-        )
-        ttk.Button(model_box, text="Browse", command=self._browse_model).grid(
-            row=0, column=2, padx=(0, 8)
-        )
-        ttk.Button(model_box, text="Load Model", command=self._load_model).grid(
-            row=0, column=3
-        )
+        ttk.Entry(model_box, textvariable=self.model_path_var).grid(row=0, column=1, sticky="ew", padx=8)
+        ttk.Button(model_box, text="Browse", command=self._browse_model).grid(row=0, column=2)
 
-        # ---------------------
-        # CAMERA BACKEND
-        # ---------------------
-        camera_box = ttk.LabelFrame(self, text="Camera", padding=12)
-        camera_box.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+        m_btn_fm = ttk.Frame(model_box)
+        m_btn_fm.grid(row=1, column=0, columnspan=3, pady=(10, 0), sticky="ew")
+        ttk.Button(m_btn_fm, text="Load Model", command=self._load_model).pack(side="left", expand=True, fill="x", padx=(0, 4))
+        ttk.Button(m_btn_fm, text="Unload Model", command=self._unload_model).pack(side="right", expand=True, fill="x", padx=(4, 0))
+
+        # ---------------------------------------------------------
+        # LEFT 2: SOURCE & CAMERA BACKEND
+        # ---------------------------------------------------------
+        source_box = ttk.LabelFrame(left2_panel, text="Source", padding=12)
+        source_box.pack(fill="x", pady=(0, 12))
+        source_box.columnconfigure(1, weight=1)
+
+        src_radio_fm = ttk.Frame(source_box)
+        src_radio_fm.grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Radiobutton(src_radio_fm, text="Camera", value="camera", variable=self.source_type_var, command=self._update_source_widgets).pack(side="left", padx=(0, 20))
+        ttk.Radiobutton(src_radio_fm, text="Image Folder", value="folder", variable=self.source_type_var, command=self._update_source_widgets).pack(side="left")
+
+        ttk.Label(source_box, text="Folder").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        self.folder_entry = ttk.Entry(source_box, textvariable=self.image_folder_var)
+        self.folder_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=(10, 0))
+        self.folder_browse_button = ttk.Button(source_box, text="...", command=self._browse_image_folder, width=4)
+        self.folder_browse_button.grid(row=1, column=2, pady=(10, 0))
+        self.source_apply_button = ttk.Button(source_box, text="Apply Source", command=self._apply_source)
+        self.source_apply_button.grid(row=2, column=0, columnspan=3, pady=(10, 0), sticky="ew")
+
+        camera_box = ttk.LabelFrame(left2_panel, text="Camera Backend", padding=12)
+        camera_box.pack(fill="x", pady=(0, 12))
         camera_box.columnconfigure(1, weight=1)
 
-        ttk.Label(camera_box, text="Camera backend").grid(row=0, column=0, sticky="w")
-        ttk.Radiobutton(
-            camera_box,
-            text="OpenCV / USB",
-            value="opencv",
-            variable=self.camera_backend_var,
-            command=self._update_source_widgets,
-        ).grid(row=0, column=1, sticky="w")
-        ttk.Radiobutton(
-            camera_box,
-            text="Basler Vision",
-            value="basler",
-            variable=self.camera_backend_var,
-            command=self._update_source_widgets,
-        ).grid(row=0, column=2, sticky="w", padx=(12, 0))
+        cam_radio_fm = ttk.Frame(camera_box)
+        cam_radio_fm.grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Radiobutton(cam_radio_fm, text="OpenCV", value="opencv", variable=self.camera_backend_var, command=self._update_source_widgets).pack(side="left", padx=(0, 20))
+        ttk.Radiobutton(cam_radio_fm, text="Basler", value="basler", variable=self.camera_backend_var, command=self._update_source_widgets).pack(side="left")
 
-        ttk.Label(camera_box, text="Camera index").grid(row=1, column=0, sticky="w", pady=(10, 0))
-        self.camera_index_spin = ttk.Spinbox(
-            camera_box,
-            from_=0,
-            to=10,
-            textvariable=self.camera_index_var,
-            width=10,
-        )
+        ttk.Label(camera_box, text="Index").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        self.camera_index_spin = ttk.Spinbox(camera_box, from_=0, to=10, textvariable=self.camera_index_var, width=10)
         self.camera_index_spin.grid(row=1, column=1, sticky="w", padx=8, pady=(10, 0))
 
-        ttk.Label(camera_box, text="Basler device").grid(row=2, column=0, sticky="w", pady=(10, 0))
-        self.basler_device_combo = ttk.Combobox(
-            camera_box,
-            textvariable=self.basler_device_var,
-            state="readonly",
-        )
+        ttk.Label(camera_box, text="Basler").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        self.basler_device_combo = ttk.Combobox(camera_box, textvariable=self.basler_device_var, state="readonly")
         self.basler_device_combo.grid(row=2, column=1, sticky="ew", padx=8, pady=(10, 0))
-        self.basler_refresh_button = ttk.Button(
-            camera_box,
-            text="Refresh Devices",
-            command=self._refresh_basler_devices,
-        )
-        self.basler_refresh_button.grid(row=2, column=2, sticky="w", pady=(10, 0))
+        self.basler_refresh_button = ttk.Button(camera_box, text="Refresh", command=self._refresh_basler_devices)
+        self.basler_refresh_button.grid(row=2, column=2, pady=(10, 0))
 
-        ttk.Label(
-            camera_box,
-            textvariable=self.basler_sdk_var,
-            style="Status.TLabel",
-            wraplength=900,
-            justify="left",
-        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(10, 0))
+        self.apply_camera_button = ttk.Button(camera_box, text="Apply Camera", command=self._apply_camera_connection)
+        self.apply_camera_button.grid(row=4, column=0, columnspan=3, pady=(15, 0), sticky="ew")
 
-        self.apply_camera_button = ttk.Button(
-            camera_box,
-            text="Apply Camera",
-            command=self._apply_camera_connection,
-        )
-        self.apply_camera_button.grid(row=4, column=0, sticky="w", pady=(10, 0))
+        # ---------------------------------------------------------
+        # RIGHT PANEL: ACCESS CONTROL
+        # ---------------------------------------------------------
+        auth_box = ttk.LabelFrame(right_panel, text="User Access Control", padding=15)
+        auth_box.pack(fill="both", expand=True)
+        
+        ttk.Label(auth_box, text="Current Permission Level:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 10))
+        
+        roles = [("Worker (Operation Only)", "worker"), ("Engineer (Config Only)", "engineer"), ("Admin (Full Access)", "admin")]
+        for text, mode in roles:
+            ttk.Radiobutton(auth_box, text=text, value=mode, variable=self.user_role_var, state="disabled").pack(anchor="w", pady=4)
+
+        ttk.Separator(auth_box, orient="horizontal").pack(fill="x", pady=20)
+        
+        ttk.Label(auth_box, text="Username:").pack(anchor="w", pady=(0, 5))
+        ttk.Entry(auth_box, textvariable=self.username_var).pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(auth_box, text="Password:").pack(anchor="w", pady=(0, 5))
+        ttk.Entry(auth_box, textvariable=self.password_var, show="*").pack(fill="x", pady=(0, 20))
+        
+        ttk.Button(auth_box, text="Login / Unlock", style="Primary.TButton", command=self._handle_login).pack(fill="x")
+
+        # ================= BOTTOM SECTION: PRODUCT CONFIG =================
+        bottom_row = ttk.Frame(self, padding=(0, 15, 0, 0))
+        bottom_row.grid(row=1, column=0, columnspan=3, sticky="nsew")
+        bottom_row.columnconfigure(0, weight=1)
+
+        product_box = ttk.LabelFrame(bottom_row, text="Product Configuration & Dynamic Model Selection", padding=15)
+        product_box.grid(row=0, column=0, sticky="ew")
+        product_box.columnconfigure(1, weight=1)
+        product_box.columnconfigure(4, weight=1)
+
+        ttk.Label(product_box, text="Active List:", font=("Segoe UI", 10)).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        
+        self.model_combo = ttk.Combobox(product_box, values=self.product_models_list, textvariable=self.product_model_var, state="readonly", width=30)
+        self.model_combo.grid(row=0, column=1, sticky="w", padx=(0, 10))
+        
+        ttk.Button(product_box, text="Apply Product", style="Primary.TButton", command=self._apply_product_model).grid(row=0, column=2, padx=(0, 20))
+        ttk.Button(product_box, text="Delete Selected", command=self._delete_product_model).grid(row=0, column=3, padx=(0, 30))
+
+        ttk.Separator(product_box, orient="vertical").grid(row=0, column=4, sticky="ns", padx=10)
+
+        ttk.Label(product_box, text="Add New:").grid(row=0, column=5, sticky="w", padx=(10, 10))
+        ttk.Entry(product_box, textvariable=self.new_model_var, width=20).grid(row=0, column=6, sticky="ew", padx=(0, 10))
+        ttk.Button(product_box, text="Add Model", command=self._add_product_model).grid(row=0, column=7)
+
+    # --- PRODUCT MODEL LOGIC ---
+    def _add_product_model(self) -> None:
+        new_model = self.new_model_var.get().strip()
+        if not new_model:
+            messagebox.showwarning("Warning", "Model name cannot be empty.")
+            return
+        if new_model in self.product_models_list:
+            messagebox.showwarning("Warning", "Model already exists.")
+            return
+        
+        self.product_models_list.append(new_model)
+        self.model_combo["values"] = self.product_models_list
+        self.product_model_var.set(new_model)
+        self.new_model_var.set("")
+        self.app.status_var.set(f"Added new product model: {new_model}")
+
+    def _delete_product_model(self) -> None:
+        current_model = self.product_model_var.get()
+        if not current_model:
+            return
+            
+        if len(self.product_models_list) <= 1:
+            messagebox.showwarning("Warning", "Cannot delete the last model in the list.")
+            return
+            
+        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{current_model}'?"):
+            self.product_models_list.remove(current_model)
+            self.model_combo["values"] = self.product_models_list
+            self.product_model_var.set(self.product_models_list[0])
+            self.app.status_var.set(f"Deleted product model: {current_model}")
+
+    def _apply_product_model(self) -> None:
+        current_model = self.product_model_var.get()
+        self.app.status_var.set(f"Applied Product Line: {current_model}")
+        messagebox.showinfo("Success", f"Product '{current_model}' is now active.")
+
+    # --- LOGIN LOGIC ---
+    def _handle_login(self) -> None:
+        username = self.username_var.get().strip()
+        password = self.password_var.get().strip()
+        
+        success, message = self.app.auth_service.login(username, password)
+        if success:
+            self.user_role_var.set(self.app.auth_service.current_role)
+            self.app.status_var.set(message)
+            self.password_var.set("") # Clear password field
+            messagebox.showinfo("Login Successful", message)
+        else:
+            messagebox.showwarning("Login Failed", message)
 
     # --- COM CONNECTION LOGIC ---
     def _refresh_com_ports(self, silent: bool = False) -> None:
@@ -214,7 +236,7 @@ class SettingWindow(BaseWindow):
             self.com_port_var.set(ports[0])
         else:
             self.com_port_var.set("")
-        self.motor_status_var.set(message)
+        
         if not silent:
             self.app.status_var.set(message)
 
@@ -228,7 +250,6 @@ class SettingWindow(BaseWindow):
         ok, message = self.app.motor_service.connect(
             port=self.com_port_var.get().strip(), baudrate=baudrate, timeout=0.2,
         )
-        self.motor_status_var.set(message)
         self.app.status_var.set(message)
         
         if self.app.motor_service:
@@ -240,7 +261,6 @@ class SettingWindow(BaseWindow):
 
     def _disconnect_motor(self) -> None:
         _, message = self.app.motor_service.disconnect()
-        self.motor_status_var.set(message)
         self.app.status_var.set(message)
 
 
@@ -273,7 +293,7 @@ class SettingWindow(BaseWindow):
         success, message = self.app.folder_service.load_folder(folder_path)
         self.app.current_frame = self.app.folder_service.read_frame()
         self.app.main_tab._render_realtime(self.app.current_frame)
-        self.app.status_var.set(message)
+        self.app.status_var.set(f"{message} {folder_path}")
         self._update_source_widgets()
 
         if not success:
@@ -382,7 +402,14 @@ class SettingWindow(BaseWindow):
 
         message = self.app.segmenter.load_model(model_path)
         self.app.main_tab.segment_mode_var.set(message)
+        self.app.status_var.set(f"{message} {model_path}")
+
+    def _unload_model(self) -> None:
+        message = self.app.segmenter.unload_model()
+        self.model_path_var.set("")
+        self.app.main_tab.segment_mode_var.set(message)
         self.app.status_var.set(message)
+        messagebox.showinfo("Unload model", "Model unloaded. Reverted to default fallback mode.")
 
     def _current_settings(self, confidence, threshold, blur, min_area, alpha) -> SegmentSettings:
         # Lấy file hiện tại để pass sang segment

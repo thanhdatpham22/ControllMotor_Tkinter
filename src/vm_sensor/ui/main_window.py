@@ -14,6 +14,7 @@ from vm_sensor.services.image_source_service import ImageFolderService
 from vm_sensor.services.motor_service import MotorControllerService
 from vm_sensor.services.segment_service import YoloSegmenter
 from vm_sensor.services.storage_service import StorageService
+from vm_sensor.services.auth_service import AuthService
 from vm_sensor.reg_mapping import RegisterMap
 from vm_sensor.logic.handler import TrayScanHandler
 
@@ -26,6 +27,7 @@ from vm_sensor.ui.vision_window import VisionWindow
 class MainWindow:
     def __init__(self) -> None:
         self.root = tk.Tk()
+        # self.root = ThemedTk(theme="yaru")
         self.root.title(WINDOW_TITLE)
         self.root.geometry(WINDOW_SIZE)
         self.root.minsize(1320, 840)
@@ -38,6 +40,7 @@ class MainWindow:
         self.state = AppState()
         self.segmenter = YoloSegmenter()
         self.storage_service = StorageService(OUTPUT_DIR)
+        self.auth_service = AuthService()
         self.scan_handler = TrayScanHandler(self)
 
         # Shared Global State
@@ -58,6 +61,9 @@ class MainWindow:
         self.camera_service.start()
         self._refresh_realtime_loop()
 
+        # Trace status changes to highlight footer
+        self.status_var.trace_add("write", self._on_status_change)
+
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def run(self) -> None:
@@ -67,20 +73,52 @@ class MainWindow:
         style = ttk.Style()
         try:
             style.theme_use("clam")
+            # style.theme_use("vista")
         except tk.TclError:
             pass
+        # style = ThemedStyle(self.root)   # ← khác với ttk.Style()
 
         style.configure("TNotebook", background="#e9ecef")
         style.configure("TFrame", background="#f5f6f8")
         style.configure("TLabelframe", background="#f5f6f8")
         style.configure("TLabelframe.Label", font=("Segoe UI", 10, "bold"))
         style.configure("Header.TLabel", font=("Segoe UI", 11, "bold"))
-        style.configure("Status.TLabel", background="#f5f6f8", foreground="#1f2933")
+        style.configure("Status.TLabel", background="#f5f6f8", foreground="#1f2933", font=("Segoe UI", 9))
+        style.configure("StatusBold.TLabel", background="yellow", foreground="#003366", font=("Segoe UI", 9, "bold"))
         style.configure("Primary.TButton", padding=(10, 6))
 
     def _build_ui(self) -> None:
+        # --- FIXED STATUS BAR (Bottom) ---
+        # Pack this first so it stays at the bottom and isn't pushed out by the expanding shell
+        footer = ttk.Frame(self.root, relief="flat")
+        footer.pack(side="bottom", fill="x")
+
+        # Status Message Label
+        self.status_label = ttk.Label(
+            footer, 
+            textvariable=self.status_var, 
+            style="Status.TLabel",
+            padding=(10, 5),
+            relief="sunken"
+        )
+        self.status_label.pack(side="left", fill="x", expand=True)
+
+        # Last Saved / Info Label
+        info_label = ttk.Label(
+            footer, 
+            textvariable=self.last_saved_var, 
+            style="Status.TLabel",
+            padding=(10, 5),
+            relief="sunken"
+        )
+        info_label.pack(side="left", fill="x", expand=True)
+
+        # Sizegrip
+        ttk.Sizegrip(footer).pack(side="right", anchor="se")
+
+        # --- MAIN CONTENT AREA ---
         shell = ttk.Frame(self.root, padding=12)
-        shell.pack(fill="both", expand=True)
+        shell.pack(side="top", fill="both", expand=True)
         
         notebook = ttk.Notebook(shell)
         notebook.pack(fill="both", expand=True)
@@ -100,14 +138,12 @@ class MainWindow:
         notebook.add(self.dataset_tab, text="Dataset")
         notebook.add(self.settings_tab, text="Settings")
 
-        footer = ttk.Frame(shell, padding=(0, 10, 0, 0))
-        footer.pack(fill="x")
-        ttk.Label(footer, textvariable=self.status_var, style="Status.TLabel").pack(
-            side="left", fill="x", expand=True
-        )
-        ttk.Label(footer, textvariable=self.last_saved_var, style="Status.TLabel").pack(
-            side="right"
-        )
+    def _on_status_change(self, *args) -> None:
+        """Flash the status bar when text changes to notify the user."""
+        if hasattr(self, 'status_label'):
+            self.status_label.configure(style="StatusBold.TLabel")
+            # Revert to normal style after 2 seconds
+            self.root.after(2000, lambda: self.status_label.configure(style="Status.TLabel"))
 
     def _refresh_realtime_loop(self) -> None:
         if self.active_source_type == "camera":

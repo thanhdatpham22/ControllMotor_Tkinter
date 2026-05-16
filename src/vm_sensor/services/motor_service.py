@@ -70,8 +70,9 @@ class MotorControllerService():
         ports = [port.device for port in list_ports.comports()]
         if not ports:
             return [], "No COM port detected."
-        print("List Ports: ",list_ports)
+        print("List Ports: ", ports)
         return ports, f"Found {len(ports)} COM port(s)."
+        
     def set_refresh_interval(self, interval_ms: int):
         self.refresh_interval = interval_ms
     def start_worker(self):

@@ -10,11 +10,6 @@ class VisionWindow(BaseWindow):
         super().__init__(parent, app)
         
         self.segment_mode_var = tk.StringVar(value=self.app.segmenter.status_message)
-        self.confidence_var = tk.DoubleVar(value=0.40)
-        self.threshold_var = tk.IntVar(value=120)
-        self.blur_var = tk.IntVar(value=5)
-        self.min_area_var = tk.IntVar(value=800)
-        self.overlay_alpha_var = tk.DoubleVar(value=0.45)
         
         self.save_yolo_var = tk.BooleanVar(value=False)
         self.save_json_var = tk.BooleanVar(value=False)
@@ -82,11 +77,11 @@ class VisionWindow(BaseWindow):
         tuning_box.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         tuning_box.columnconfigure(1, weight=1)
 
-        self._add_scale_row(tuning_box, 0, "Confidence", self.confidence_var, 0.05, 1.0, 0.05)
-        self._add_scale_row(tuning_box, 1, "Threshold", self.threshold_var, 0, 255, 1)
-        self._add_scale_row(tuning_box, 2, "Blur Kernel", self.blur_var, 1, 31, 2)
-        self._add_scale_row(tuning_box, 3, "Min Area", self.min_area_var, 100, 10000, 100)
-        self._add_scale_row(tuning_box, 4, "Overlay Alpha", self.overlay_alpha_var, 0.1, 0.9, 0.05)
+        self._add_scale_row(tuning_box, 0, "Confidence", self.app.state.confidence_var, 0.05, 1.0, 0.05)
+        self._add_scale_row(tuning_box, 1, "Threshold", self.app.state.threshold_var, 0, 255, 1)
+        self._add_scale_row(tuning_box, 2, "Blur Kernel", self.app.state.blur_var, 1, 31, 2)
+        self._add_scale_row(tuning_box, 3, "Min Area", self.app.state.min_area_var, 100, 10000, 100)
+        self._add_scale_row(tuning_box, 4, "Overlay Alpha", self.app.state.overlay_alpha_var, 0.1, 0.9, 0.05)
 
         # ================= RIGHT SIDE: TRAY GRID & STATUS =================
         tray_box = ttk.LabelFrame(right_side, text="Tray Map (15x5)", padding=10)
@@ -107,6 +102,7 @@ class VisionWindow(BaseWindow):
         self._add_info_row(status_box, 0, "Machine State:", self.machine_status_var, "#007bff")
         self._add_info_row(status_box, 1, "Cycle Time:", self.cycle_time_var, "#28a745")
         self._add_info_row(status_box, 2, "Total Count:", self.item_count_var, "#fd7e14")
+        self._add_info_row(status_box, 3, "AI Model:", self.segment_mode_var, "#6f42c1")
 
         # Redraw tray map dynamically on resize
         self.tray_canvas.bind("<Configure>", lambda e: self._draw_tray_grid())
@@ -184,16 +180,16 @@ class VisionWindow(BaseWindow):
 
     def _capture_segment(self) -> None:
         settings = self.app.settings_tab._current_settings(
-            self.confidence_var.get(),
-            self.threshold_var.get(),
-            self.blur_var.get(),
-            self.min_area_var.get(),
-            self.overlay_alpha_var.get()
+            self.app.state.confidence_var.get(),
+            self.app.state.threshold_var.get(),
+            self.app.state.blur_var.get(),
+            self.app.state.min_area_var.get(),
+            self.app.state.overlay_alpha_var.get()
         )
         frame = self.app.current_frame.copy()
 
         self.segment_result = self.app.segmenter.segment(frame, settings)
-        self.segment_mode_var.set(self.app.segmenter.status_message)
+        # self.segment_mode_var.set(self.app.segmenter.status_message)
         self._render_segment(self.segment_result.overlay_frame)
         self.app.status_var.set(
             f"Captured frame and processed segment with {self.segment_result.mode} mode."

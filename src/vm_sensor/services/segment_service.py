@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -40,6 +40,12 @@ class YoloSegmenter:
             self.model = None
             self.status_message = f"Failed to load model: {exc}"
 
+        return self.status_message
+    
+    def unload_model(self) -> str:
+        self.model = None
+        self.model_path = None
+        self.status_message = "Fallback contour segmentation is active."
         return self.status_message
 
     def segment(self, frame: np.ndarray, settings: SegmentSettings) -> SegmentResult:
