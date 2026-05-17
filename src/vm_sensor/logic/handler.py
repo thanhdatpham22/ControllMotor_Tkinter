@@ -6,7 +6,9 @@ class TrayScanHandler:
     def __init__(self, app):
         self.app = app
         self.is_running = False
+        self.is_paused = False
         self._stop_event = threading.Event()
+        self._current_tray_index = 0
 
     def calculate_grid_points(self, p1, p2, p3):
         """
@@ -48,8 +50,11 @@ class TrayScanHandler:
             
         return points
 
-    def start_scan(self, tray_index):
+    def start_scan(self, tray_index=0):
         if self.is_running:
+            if self.is_paused:
+                self.resume_scan()
+                return
             messagebox.showwarning("Warning", "A scan is already in progress.")
             return
             
@@ -70,6 +75,7 @@ class TrayScanHandler:
             
             self._current_tray_index = tray_index
             self._stop_event.clear()
+            self.app.main_tab.reset_tray_colors(tray_index)
             thread = threading.Thread(target=self._scan_executor, args=(grid,), daemon=True)
             thread.start()
             
@@ -77,8 +83,29 @@ class TrayScanHandler:
             messagebox.showerror("Data Error", f"Vui lòng kiểm tra tọa độ tray: {e}")
 
     def stop_scan(self):
+        # This acts as a true stop/cancel, or pause depending on requirement.
+        # User requested: "nhan stop thi dung lai, nhan start tiep thi tiep tuc chay", so Stop = Pause
+        self.pause_scan()
+
+    def pause_scan(self):
+        if self.is_running and not self.is_paused:
+            self.is_paused = True
+            self.app.status_var.set("Scanning PAUSED.")
+            self.app.main_tab.machine_status_var.set("PAUSED")
+
+    def resume_scan(self):
+        if self.is_running and self.is_paused:
+            self.is_paused = False
+            self.app.status_var.set("Scanning RESUMED.")
+            self.app.main_tab.machine_status_var.set("RUNNING")
+
+    def reset_scan(self):
+        # True stop and home
         self._stop_event.set()
-        self.app.status_var.set("Scanning stopped by user.")
+        self.is_paused = False
+        self.app.status_var.set("Scanning RESET by user.")
+        self.app.main_tab.machine_status_var.set("IDLE")
+        self.app.motor_service.home()
 
     def _scan_executor(self, grid):
         self.is_running = True
@@ -96,6 +123,13 @@ class TrayScanHandler:
             for i, pt in enumerate(grid):
                 if self._stop_event.is_set():
                     break
+                    
+                # Handle pause state
+                while self.is_paused and not self._stop_event.is_set():
+                    time.sleep(0.1)
+                    
+                if self._stop_event.is_set():
+                    break
                 
                 # Hiển thị tiến trình trên Status Bar
                 self.app.status_var.set(f"Tray Scanning: Point {i+1}/{len(grid)} - Coord: {pt['x']},{pt['y']},{pt['z']}")
@@ -106,21 +140,24 @@ class TrayScanHandler:
                 c = c_snake if r % 2 == 0 else (14 - c_snake)
                 
                 # Gửi lệnh di chuyển
+                target_x, target_y, target_z = int(pt['x']), int(pt['y']), int(pt['z'])
                 self.app.motor_service.enqueue_move_absolute(
-                    int(pt['x']), int(pt['y']), int(pt['z']),
+                    target_x, target_y, target_z,
                     sp_x, sp_y, sp_z
                 )
                 self.app.motor_service.enqueue_set_absolute()
                 
+               #wait motor move 
+                
                 # Cập nhật Cycle Time tạm tính
                 self.app.main_tab.cycle_time_var.set(f"{time.time() - start_time:.2f}s")
                 
-                # Dừng 1s theo yêu cầu để ổn định và chụp ảnh
-                time.sleep(0.5) 
+                # Dừng 0.5s để cơ cấu cơ khí ổn định (chống rung) trước khi chụp ảnh
+                time.sleep(0.5)
 
                 # Gọi hàm capture và xử lý ảnh có sẵn từ main_tab
                 self.app.main_tab._capture_segment()
-                
+                time.sleep(0.5) 
                 # Lấy kết quả
                 segment_result = self.app.main_tab.segment_result
                 
@@ -138,8 +175,13 @@ class TrayScanHandler:
                 self.app.status_var.set("Scan Completed successfully.")
                 self.app.main_tab.machine_status_var.set("IDLE")
                 messagebox.showinfo("Done", "Tray scan process completed.")
+                # Done and go home
+                time.sleep(2)
+                self.app.motor_service.home()
+                
         except Exception as e:
             self.app.status_var.set(f"Scan interrupted: {e}")
             self.app.main_tab.machine_status_var.set("ERROR")
         finally:
             self.is_running = False
+            self.is_paused = False

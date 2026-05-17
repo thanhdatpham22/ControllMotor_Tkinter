@@ -8,9 +8,9 @@ class AppState():
         self.abs_y_var = tk.DoubleVar(value=0)
         self.abs_z_var = tk.DoubleVar(value=0)
 
-        self.speed_x = tk.DoubleVar(value=20000)
-        self.speed_y = tk.DoubleVar(value=20000)
-        self.speed_z = tk.DoubleVar(value=5000)
+        self.speed_x = tk.DoubleVar(value=10000)
+        self.speed_y = tk.DoubleVar(value=10000)
+        self.speed_z = tk.DoubleVar(value=2000)
 
         self.max_x = 50000
         self.max_y = 33500

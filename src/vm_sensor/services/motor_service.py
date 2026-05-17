@@ -41,6 +41,11 @@ class MotorControllerService():
         self.cmd_queue = queue.Queue()
         self.input_states = [False] * 24
         self.output_states = [False] * 24
+        
+        # Tạo thread duy nhất chạy ngầm suốt vòng đời app
+        self._app_running = True
+        threading.Thread(target=self._worker_loop, daemon=True, name="MotorWorker").start()
+        threading.Thread(target=self._poll_loop, daemon=True, name="MotorPoll").start()
     def snapshot(self) -> SnapshotDict:
         return {
             "connected": bool(self.is_connected()),
@@ -75,12 +80,13 @@ class MotorControllerService():
         
     def set_refresh_interval(self, interval_ms: int):
         self.refresh_interval = interval_ms
-    def start_worker(self):
-        threading.Thread(target=self._worker_loop, daemon=True).start()
-        threading.Thread(target=self._poll_loop, daemon=True).start()
+        
     def _worker_loop(self):
-        while self._polling:
+        while self._app_running:
             func, args = self.cmd_queue.get()
+            if func is None: # Tín hiệu đóng (Poison pill) hoặc đánh thức
+                continue
+                
             print("Have get Queue Signal")
             try:
                 func(*args)
@@ -90,13 +96,21 @@ class MotorControllerService():
 
     # ================= CONNECT =================
     def connect(self, port, baudrate=115200, timeout = 0.2):
+        if self._polling:
+            self.disconnect()
+            time.sleep(0.1)
+            
         try:
             self.modbus = ModbusRTUService(port, baudrate)
             self.connected_port = port
             self.timeout = timeout
             self.modbus._log(f"Connected {port}")
             self._polling = True
-            self.start_worker()
+            
+            # Xóa các lệnh cũ trong hàng đợi nếu có
+            with self.cmd_queue.mutex:
+                self.cmd_queue.queue.clear()
+                
             self.home()
             return True, "Connected"
         except Exception as e:
@@ -106,6 +120,8 @@ class MotorControllerService():
 
     def disconnect(self):
         self._polling = False
+        self.cmd_queue.put((None, None)) # Đẩy tín hiệu rỗng để đánh thức worker_loop và bắt nó tự thoát
+        
         if self.modbus:
             try:
                 self.modbus.close()
@@ -122,9 +138,8 @@ class MotorControllerService():
     # ================= POLLING =================
     def _poll_loop(self):
         count = 0
-        while self._polling:
-            # count += 1
-            if self.modbus:
+        while self._app_running:
+            if self._polling and self.modbus:
                 try:
                     res = self.modbus.read_input_registers(1, 0, 9)
                     # print("Res: ", res)

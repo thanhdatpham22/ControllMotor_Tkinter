@@ -116,6 +116,13 @@ class VisionWindow(BaseWindow):
         self.cell_colors[(tray_index, r, c)] = color
         tag = f"tray_{tray_index}_cell_{r}_{c}"
         self.tray_canvas.itemconfig(tag, fill=color)
+        
+    def reset_tray_colors(self, tray_index):
+        for r in range(5):
+            for c in range(15):
+                self.cell_colors[(tray_index, r, c)] = "#2a2a2a"
+                tag = f"tray_{tray_index}_cell_{r}_{c}"
+                self.tray_canvas.itemconfig(tag, fill="#2a2a2a")
 
     def _draw_tray_grid(self):
         self.tray_canvas.delete("all")

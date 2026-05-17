@@ -12,7 +12,7 @@ class MotorWindow(BaseWindow):
         
         self.jog_step_var = tk.DoubleVar(value=1.0)
         self.motor_position_var = tk.StringVar(value=self._format_motor_positions())
-        self.refresh_var = tk.StringVar(value="100 ms")
+        self.refresh_var = tk.StringVar(value="50 ms")
 
         # Local photos/refs
         self.motor_photo = None
@@ -359,6 +359,7 @@ class MotorWindow(BaseWindow):
                 raise ValueError(f"Z must be in range [{Z_MIN}, {Z_MAX}]")
             
             self.app.motor_service.enqueue_move_absolute(x, y, z, sp_x, sp_y, sp_z)
+            self.app.status_var.set(f"Move to X={x}, Y={y}, Z={z} (Absolute)") 
         except ValueError as e:
             messagebox.showerror("Invalid Input", str(e))
         except Exception as e:
@@ -368,6 +369,7 @@ class MotorWindow(BaseWindow):
         if not self.app.motor_service or not self.app.motor_service.is_connected():
             return
         self.app.motor_service.enqueue_set_absolute()
+        self.app.status_var.set(f"Move Absolute") 
 
     def _apply_motor_speeds(self) -> None:
         result = self.app.motor_service.set_all_speeds(
@@ -556,7 +558,7 @@ class MotorWindow(BaseWindow):
 
     def _autoload_teach_points(self):
         # Tự động tìm tệp trong thư mục Teach_Point ở thư mục gốc
-        default_dir = os.path.join(os.getcwd(), "Teach_Point")
+        default_dir = os.path.join(os.getcwd(), "assets/teach_point")
         if os.path.exists(default_dir):
             files = [f for f in os.listdir(default_dir) if f.endswith(".txt")]
             if files:

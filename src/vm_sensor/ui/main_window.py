@@ -50,6 +50,7 @@ class MainWindow:
 
         self.status_var = tk.StringVar(value="Ready.")
         self.last_saved_var = tk.StringVar(value="No saved capture yet.")
+        self.prev_input_states = [False] * 24
 
         # Common configuration styles
         self._configure_style()
@@ -155,7 +156,33 @@ class MainWindow:
             self.current_frame = self.folder_service.last_frame.copy()
 
         self.main_tab._render_realtime(self.current_frame)
+        self._check_plc_inputs()
         self.root.after(REFRESH_INTERVAL_MS, self._refresh_realtime_loop)
+
+    def _check_plc_inputs(self):
+        # We need to ensure motor_service has fetched input states
+        if not self.motor_service.is_connected() or len(self.motor_service.input_states) < 7:
+            return
+            
+        current_states = self.motor_service.input_states
+        
+        # Stop is mapped to input 4 (COIL_INPUT[5])
+        # Start is mapped to input 5 (COIL_INPUT[6]) 
+        # Reset is mapped to input 6 (COIL_INPUT[7])
+        
+        # Detect Rising Edges
+        start_pressed = current_states[5] and not self.prev_input_states[5]
+        stop_pressed = current_states[4] and not self.prev_input_states[4]
+        reset_pressed = current_states[6] and not self.prev_input_states[6]
+        
+        if reset_pressed:
+            self.scan_handler.reset_scan()
+        elif stop_pressed:
+            self.scan_handler.stop_scan()  # stop_scan now acts as pause_scan
+        elif start_pressed:
+            self.scan_handler.start_scan(self.scan_handler._current_tray_index)
+            
+        self.prev_input_states = list(current_states)
 
     def _on_close(self) -> None:
         self.camera_service.release()

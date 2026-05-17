@@ -255,7 +255,7 @@ class SettingWindow(BaseWindow):
         if self.app.motor_service:
             if hasattr(self.app, 'motor_tab'):
                 self.app.motor_service.ui_callback = self.app.motor_tab._update_input_ui
-        self.app.motor_service.start_worker() 
+        # self.app.motor_service.start_worker() 
         if not ok:
             messagebox.showwarning("Motor", message)
 
