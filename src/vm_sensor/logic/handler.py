@@ -111,6 +111,7 @@ class TrayScanHandler:
         self.is_running = True
         self.app.status_var.set("Scanning... [BUSY]")
         
+        restart = False
         try:
             # Lấy tốc độ hiện tại từ AppState
             sp_x = int(self.app.state.speed_x.get()) or 2000
@@ -178,6 +179,8 @@ class TrayScanHandler:
                 # Done and go home
                 time.sleep(2)
                 self.app.motor_service.home()
+                # time.sleep(25) # or self.app.motor_service.wait_until_idle()
+                # restart = True
                 
         except Exception as e:
             self.app.status_var.set(f"Scan interrupted: {e}")
@@ -185,3 +188,5 @@ class TrayScanHandler:
         finally:
             self.is_running = False
             self.is_paused = False
+            # if restart and not self._stop_event.is_set():
+            #     self.app.root.after(500, lambda: self.start_scan(self._current_tray_index))

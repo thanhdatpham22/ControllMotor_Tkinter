@@ -99,7 +99,6 @@ class MotorControllerService():
         if self._polling:
             self.disconnect()
             time.sleep(0.1)
-            
         try:
             self.modbus = ModbusRTUService(port, baudrate)
             self.connected_port = port
