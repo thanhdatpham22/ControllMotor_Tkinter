@@ -30,7 +30,7 @@ class MainWindow:
         # self.root = ThemedTk(theme="yaru")
         self.root.title(WINDOW_TITLE)
         self.root.geometry(WINDOW_SIZE)
-        self.root.minsize(1320, 840)
+        self.root.minsize(1650, 840)
 
         # Services
         self.camera_service = CameraService(camera_index=0)

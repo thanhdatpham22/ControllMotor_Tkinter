@@ -5,6 +5,7 @@ from tkinter.scrolledtext import ScrolledText
 from vm_sensor.ui.base_window import BaseWindow
 from vm_sensor.utils.image_utils import to_photo_image
 from vm_sensor.config import PREVIEW_WIDTH, PREVIEW_HEIGHT
+from vm_sensor.utils.frame_utils import build_placeholder_frame
 
 class MotorWindow(BaseWindow):
     def __init__(self, parent, app):
@@ -271,6 +272,11 @@ class MotorWindow(BaseWindow):
 
         self.motor_camera_label = ttk.Label(preview_box, anchor="center")
         self.motor_camera_label.grid(row=0, column=0, sticky="nsew")
+
+        # Initialize motor camera preview with a placeholder at startup
+        placeholder = build_placeholder_frame("Camera offline")
+        self.motor_photo = to_photo_image(placeholder, PREVIEW_WIDTH, PREVIEW_HEIGHT)
+        self.motor_camera_label.configure(image=self.motor_photo)
 
         # ===== Position =====
         position_box = ttk.LabelFrame(right_panel, text="Axis Position", padding=12)
